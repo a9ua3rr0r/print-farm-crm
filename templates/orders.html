@@ -1,0 +1,320 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div>
+        <h3 class="fw-bold mb-0">Управление заказами и клиентами</h3>
+        <p class="text-muted small mb-0">Приём заявок, расчёт плановой рентабельности, печать нарядов с QR-кодами и отгрузка</p>
+    </div>
+    <div class="d-flex gap-2">
+        <button class="btn btn-outline-info" data-bs-toggle="modal" data-bs-target="#newClientModal">
+            <i class="bi bi-person-plus me-1"></i> Новый клиент
+        </button>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newOrderModal">
+            <i class="bi bi-plus-lg me-1"></i> Оформить заказ
+        </button>
+    </div>
+</div>
+
+<!-- Фильтр по статусам -->
+<div class="d-flex flex-wrap gap-2 mb-3">
+    <a href="/orders" class="btn btn-sm {% if not status_filter %}btn-primary{% else %}btn-outline-secondary text-light{% endif %}">Все заказы</a>
+    <a href="/orders?status=new" class="btn btn-sm {% if status_filter == 'new' %}btn-primary{% else %}btn-outline-secondary text-light{% endif %}">Новые</a>
+    <a href="/orders?status=in_progress" class="btn btn-sm {% if status_filter == 'in_progress' %}btn-primary{% else %}btn-outline-secondary text-light{% endif %}">В производстве</a>
+    <a href="/orders?status=ready" class="btn btn-sm {% if status_filter == 'ready' %}btn-primary{% else %}btn-outline-secondary text-light{% endif %}">Готовы к отгрузке</a>
+    <a href="/orders?status=shipped" class="btn btn-sm {% if status_filter == 'shipped' %}btn-primary{% else %}btn-outline-secondary text-light{% endif %}">Выданы клиенту</a>
+</div>
+
+<div class="glass-card">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th>Номер</th>
+                    <th>Заказчик и контакты</th>
+                    <th>Состав заказа (изделия)</th>
+                    <th>Срок сдачи</th>
+                    <th>Прогресс (Печать / Упак)</th>
+                    <th>Экономика и маржа</th>
+                    <th>Статус</th>
+                    <th>Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for o in orders %}
+                {% set econ = order_econ_map.get(o.id, {'planned_cost': 0, 'net_profit': 0, 'margin_pct': 0}) %}
+                <tr>
+                    <td class="fw-bold text-primary">#ORD-{{ "%04d"|format(o.id) }}</td>
+                    <td>
+                        <div class="fw-semibold text-white">{{ o.client_name }}</div>
+                        <div class="small text-muted">{{ o.client_phone }}</div>
+                    </td>
+                    <td>
+                        {% for item in order_items_map.get(o.id, []) %}
+                        <div class="small mb-1">
+                            <span class="badge bg-dark border border-secondary text-info">{{ item.sku }}</span>
+                            <span class="text-white">{{ item.product_name }}</span>
+                            <span class="text-muted">× {{ item.quantity }} шт.</span>
+                        </div>
+                        {% endfor %}
+                    </td>
+                    <td>
+                        <div class="{% if o.is_overdue %}text-danger fw-bold{% endif %}">{{ o.deadline | date_ru }}</div>
+                        {% if o.is_overdue %}
+                        <span class="badge bg-danger" style="font-size: 0.65rem;">Просрочен</span>
+                        {% endif %}
+                    </td>
+                    <td style="min-width: 195px;">
+                        <div class="d-flex justify-content-between small text-muted mb-1">
+                            <span>Печать: <strong class="text-white">{{ o.printed_qty }}/{{ o.total_qty }}</strong></span>
+                            <span>Упак: <strong class="text-success">{{ o.packed_qty }}/{{ o.total_qty }}</strong></span>
+                        </div>
+                        <div class="progress">
+                            {% set p_pack = ((o.packed_qty / (o.total_qty or 1)) * 100)|int %}
+                            {% set p_print = (((o.printed_qty - o.packed_qty) / (o.total_qty or 1)) * 100)|int %}
+                            <div class="progress-bar bg-success" style="width: {{ p_pack }}%" title="Упаковано"></div>
+                            <div class="progress-bar bg-primary" style="width: {{ p_print }}%" title="Напечатано"></div>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="fw-bold text-white">{{ o.total_price | rub }}</div>
+                        <div class="small text-muted" style="font-size: 0.74rem;">
+                            Себест.: {{ econ.planned_cost | rub }} •
+                            <span class="text-success fw-semibold">Маржа {{ econ.margin_pct }}%</span>
+                        </div>
+                    </td>
+                    <td>
+                        <span class="status-pill pill-{{ o.status }}">
+                            <span class="status-dot"></span>
+                            {{ o.status | order_status_ru }}
+                        </span>
+                    </td>
+                    <td>
+                        <div class="d-flex flex-wrap gap-1">
+                            <a href="/orders/{{ o.id }}/print" target="_blank" class="btn btn-sm btn-outline-warning" title="Печать наряда А4 и этикетки с QR-кодом">
+                                <i class="bi bi-qr-code"></i> Наряд
+                            </a>
+                            <a href="/track/{{ o.tracking_token }}" target="_blank" class="btn btn-sm btn-outline-info" title="Открыть страницу отслеживания клиента">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                            <button type="button" class="btn btn-sm btn-outline-secondary text-light" onclick="copyTrackLink('/track/{{ o.tracking_token }}', this)" title="Скопировать ссылку для клиента">
+                                <i class="bi bi-link-45deg"></i>
+                            </button>
+                            {% if o.status == 'ready' %}
+                            <form method="POST" action="/orders/{{ o.id }}/ship" class="d-inline">
+                                <button type="submit" class="btn btn-sm btn-success fw-semibold">
+                                    <i class="bi bi-check2-circle me-1"></i>Выдать
+                                </button>
+                            </form>
+                            {% endif %}
+                            {% if o.status in ['new', 'in_progress'] %}
+                            <form method="POST" action="/orders/{{ o.id }}/cancel" class="d-inline">
+                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Отменить заказ">
+                                    <i class="bi bi-x-lg"></i>
+                                </button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Модальное окно создания заказа с инженерно-экономическим калькулятором -->
+<div class="modal fade" id="newOrderModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header border-secondary border-opacity-25">
+                <h5 class="modal-title fw-bold"><i class="bi bi-cart-plus text-primary me-2"></i>Оформление заказа и расчёт себестоимости</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" id="createOrderForm">
+                <input type="hidden" name="form_type" value="create_order">
+                <div class="modal-body">
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-7">
+                            <label class="form-label small text-muted">Заказчик</label>
+                            <select name="client_id" class="form-select" required>
+                                {% for c in clients %}
+                                <option value="{{ c.id }}">{{ c.name }} ({{ c.phone }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label small text-muted">Плановый срок сдачи</label>
+                            <input type="date" name="deadline" class="form-control" value="{{ default_deadline }}" required>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center mt-4 mb-2">
+                        <h6 class="fw-bold mb-0">Позиции заказа (3D-модели)</h6>
+                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="addOrderItemRow(); recalcOrderEconomics();">
+                            <i class="bi bi-plus-circle me-1"></i> Добавить позицию
+                        </button>
+                    </div>
+
+                    <div id="items-container">
+                        <div class="row g-2 mb-2 item-row align-items-center">
+                            <div class="col-8">
+                                <select name="product_id[]" class="form-select product-select" onchange="recalcOrderEconomics()" required>
+                                    <option value="" data-price="0" data-weight="0" data-time="0" data-rate="2.15">Выберите изделие из каталога...</option>
+                                    {% for p in products %}
+                                    <option value="{{ p.id }}"
+                                            data-price="{{ p.price }}"
+                                            data-weight="{{ p.weight_g }}"
+                                            data-time="{{ p.print_time_min }}"
+                                            data-rate="{{ p.rate_per_g }}">
+                                        {{ p.sku }} — {{ p.name }} ({{ p.material }}, {{ p.weight_g }}г, {{ p.price | rub }})
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-3">
+                                <input type="number" name="quantity[]" class="form-control qty-input" placeholder="Кол-во (шт)" min="1" value="2" oninput="recalcOrderEconomics()" required>
+                            </div>
+                            <div class="col-1 text-end">
+                                <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeOrderItemRow(this); recalcOrderEconomics();">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Живой инженерно-экономический калькулятор партии -->
+                    <div class="mt-4 p-3 rounded-3 bg-dark border border-primary border-opacity-25">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="small fw-bold text-primary"><i class="bi bi-calculator-fill me-1"></i>Инженерно-экономический расчёт партии</span>
+                            <span class="badge bg-success" id="calc-margin-badge">Маржинальность: 0%</span>
+                        </div>
+                        <div class="row g-2 text-center small">
+                            <div class="col-sm-3">
+                                <div class="p-2 rounded bg-black bg-opacity-25 border border-secondary border-opacity-25">
+                                    <div class="text-muted" style="font-size: 0.7rem;">СЫРЬЁ + 5% РЕЗЕРВ</div>
+                                    <div class="fw-bold text-white" id="calc-plastic-cost">0.00 ₽</div>
+                                </div>
+                            </div>
+                            <div class="col-sm-3">
+                                <div class="p-2 rounded bg-black bg-opacity-25 border border-secondary border-opacity-25">
+                                    <div class="text-muted" style="font-size: 0.7rem;">ЭНЕРГИЯ + АМОРТИЗАЦИЯ</div>
+                                    <div class="fw-bold text-white" id="calc-machine-cost">0.00 ₽</div>
+                                </div>
+                            </div>
+                            <div class="col-sm-3">
+                                <div class="p-2 rounded bg-black bg-opacity-25 border border-secondary border-opacity-25">
+                                    <div class="text-muted" style="font-size: 0.7rem;">ПЛАНОВАЯ СЕБЕСТОИМОСТЬ</div>
+                                    <div class="fw-bold text-warning" id="calc-total-cost">0.00 ₽</div>
+                                </div>
+                            </div>
+                            <div class="col-sm-3">
+                                <div class="p-2 rounded bg-black bg-opacity-25 border border-secondary border-opacity-25">
+                                    <div class="text-muted" style="font-size: 0.7rem;">ЧИСТАЯ ПРИБЫЛЬ (СУММА)</div>
+                                    <div class="fw-bold text-success" id="calc-net-profit">0.00 ₽</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mt-2 pt-2 border-top border-secondary border-opacity-25 small">
+                            <span class="text-muted">Суммарный вес и время: <strong class="text-light" id="calc-tech-summary">0 г • 0 мин</strong></span>
+                            <span>Итого к оплате клиентом: <strong class="fs-6 text-white" id="calc-total-price">0.00 ₽</strong></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary border-opacity-25">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-primary fw-semibold">Подтвердить и создать заказ</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно добавления клиента -->
+<div class="modal fade" id="newClientModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header border-secondary border-opacity-25">
+                <h5 class="modal-title fw-bold"><i class="bi bi-person-plus text-info me-2"></i>Регистрация нового клиента</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST">
+                <input type="hidden" name="form_type" value="create_client">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">Наименование организации или ФИО</label>
+                        <input type="text" name="name" class="form-control" placeholder="ООО «Инновация» / Иванов И.И." required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">Контактный телефон</label>
+                        <input type="text" name="phone" class="form-control" placeholder="+7 (999) 123-45-67" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">Электронная почта (Email)</label>
+                        <input type="email" name="email" class="form-control" placeholder="client@company.ru">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">Примечание</label>
+                        <textarea name="notes" class="form-control" rows="2" placeholder="Особые требования к материалам или доставке"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary border-opacity-25">
+                    <button type="submit" class="btn btn-info fw-semibold text-dark">Сохранить клиента</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function formatRubJS(num) {
+    return num.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ₽';
+}
+
+function recalcOrderEconomics() {
+    const rows = document.querySelectorAll('#items-container .item-row');
+    let totalPlasticWithReserve = 0;
+    let totalMachine = 0;
+    let totalPrice = 0;
+    let totalWeight = 0;
+    let totalMin = 0;
+
+    rows.forEach(row => {
+        const sel = row.querySelector('select');
+        const qtyInput = row.querySelector('input[type="number"]');
+        if (!sel || !qtyInput) return;
+        const opt = sel.options[sel.selectedIndex];
+        if (!opt || !opt.value) return;
+
+        const qty = Math.max(1, parseInt(qtyInput.value || '1'));
+        const price = parseFloat(opt.dataset.price || '0');
+        const weightG = parseFloat(opt.dataset.weight || '0');
+        const timeMin = parseFloat(opt.dataset.time || '0');
+        const rateG = parseFloat(opt.dataset.rate || '2.15');
+
+        const hours = (timeMin / 60.0) * qty;
+        const plasticCost = weightG * rateG * qty;
+        const scrapReserve = plasticCost * 0.05;
+        const elecCost = hours * 0.35 * 7.50;
+        const amortCost = hours * 35.00;
+
+        totalPlasticWithReserve += (plasticCost + scrapReserve);
+        totalMachine += (elecCost + amortCost);
+        totalPrice += (price * qty);
+        totalWeight += (weightG * qty);
+        totalMin += (timeMin * qty);
+    });
+
+    const plannedCost = totalPlasticWithReserve + totalMachine;
+    const netProfit = totalPrice - plannedCost;
+    const marginPct = totalPrice > 0 ? ((netProfit / totalPrice) * 100).toFixed(1) : 0;
+
+    document.getElementById('calc-plastic-cost').textContent = formatRubJS(totalPlasticWithReserve);
+    document.getElementById('calc-machine-cost').textContent = formatRubJS(totalMachine);
+    document.getElementById('calc-total-cost').textContent = formatRubJS(plannedCost);
+    document.getElementById('calc-net-profit').textContent = formatRubJS(netProfit);
+    document.getElementById('calc-total-price').textContent = formatRubJS(totalPrice);
+    document.getElementById('calc-margin-badge').textContent = `Маржинальность: ${marginPct}% • Прибыль: ${formatRubJS(netProfit)}`;
+    document.getElementById('calc-tech-summary').textContent = `${Math.round(totalWeight)} г • ${Math.round(totalMin)} мин`;
+}
+</script>
+{% endblock %}

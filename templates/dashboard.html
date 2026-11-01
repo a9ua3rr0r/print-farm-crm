@@ -1,0 +1,290 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div>
+        <h3 class="fw-bold mb-0">Сводка производственного цеха</h3>
+        <p class="text-muted small mb-0">Оперативный контроль заказов, 3D-принтеров и запасов филамента</p>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        <a href="/track/demo777aerotech" target="_blank" class="btn btn-sm btn-outline-info">
+            <i class="bi bi-box-arrow-up-right me-1"></i> Демо-страница клиента
+        </a>
+        <span class="badge bg-dark border border-secondary px-3 py-2 text-muted">
+            <i class="bi bi-clock me-1 text-primary"></i> {{ now | datetime_ru }}
+        </span>
+    </div>
+</div>
+
+<!-- Верхние KPI-карточки -->
+<div class="row g-3 mb-4">
+    <div class="col-sm-6 col-xl-3">
+        <div class="glass-card p-3 h-100">
+            <div class="d-flex justify-content-between align-items-center">
+                <span class="text-muted small">Заказов в работе</span>
+                <span class="p-2 rounded-3 bg-primary bg-opacity-10 text-primary"><i class="bi bi-clipboard-data fs-5"></i></span>
+            </div>
+            <div class="fs-2 fw-bold text-white mt-1">{{ stats.orders_active }}</div>
+            <div class="small text-muted">Готовы к выдаче: <strong class="text-success">{{ stats.orders_ready }}</strong></div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="glass-card p-3 h-100">
+            <div class="d-flex justify-content-between align-items-center">
+                <span class="text-muted small">Загрузка 3D-фермы</span>
+                <span class="p-2 rounded-3 bg-success bg-opacity-10 text-success"><i class="bi bi-cpu fs-5"></i></span>
+            </div>
+            <div class="fs-2 fw-bold text-success mt-1">{{ stats.printers_printing }} <span class="fs-5 text-muted fw-normal">из {{ stats.printers_total }}</span></div>
+            <div class="small text-muted">На ТО: <strong class="text-danger">{{ stats.maint_open }}</strong></div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="glass-card p-3 h-100">
+            <div class="d-flex justify-content-between align-items-center">
+                <span class="text-muted small">Очередь и упаковка</span>
+                <span class="p-2 rounded-3 bg-warning bg-opacity-10 text-warning"><i class="bi bi-layers-half fs-5"></i></span>
+            </div>
+            <div class="fs-2 fw-bold text-warning mt-1">{{ stats.queue_len }} <span class="fs-6 text-muted fw-normal">в очереди</span></div>
+            <div class="small text-muted">Ждут упаковки: <strong class="text-info">{{ stats.waiting_pack }} шт.</strong></div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="glass-card p-3 h-100">
+            <div class="d-flex justify-content-between align-items-center">
+                <span class="text-muted small">Контроль сырья (&lt;200 г)</span>
+                <span class="p-2 rounded-3 bg-danger bg-opacity-10 text-danger"><i class="bi bi-disc fs-5"></i></span>
+            </div>
+            <div class="fs-2 fw-bold {% if stats.spools_warning > 0 %}text-danger{% else %}text-success{% endif %} mt-1">
+                {{ stats.spools_warning }}
+            </div>
+            <div class="small text-muted">Катушек требуют замены</div>
+        </div>
+    </div>
+</div>
+
+<!-- Автоматический поиск печатающего принтера, который ближе всего к завершению -->
+{% set active_printers = printers | selectattr('status', 'equalto', 'printing') | list %}
+{% set best_printer = (active_printers | sort(attribute='current_progress', reverse=True) | first) if active_printers else None %}
+
+<!-- Блок с интерактивным 3D-монитором и карточками принтеров -->
+<div class="row g-4 mb-4">
+    <!-- Левая колонка: Ближайшая к завершению печать в 3D -->
+    <div class="col-lg-4">
+        <div class="glass-card p-3 h-100 d-flex flex-column justify-content-between">
+            <div>
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="fw-bold">
+                        <i class="bi bi-badge-3d-fill text-primary me-2"></i>Ближайшая к завершению
+                    </span>
+                    {% if best_printer %}
+                        <span class="status-pill pill-printing" id="overview-status-pill">
+                            <span class="status-dot"></span> {{ best_printer.current_progress or 10 }}%
+                        </span>
+                    {% else %}
+                        <span class="status-pill pill-idle" id="overview-status-pill">
+                            <span class="status-dot"></span> Стенд
+                        </span>
+                    {% endif %}
+                </div>
+
+                {% if best_printer %}
+                <div class="mb-2 p-2 rounded-3 bg-dark border border-secondary border-opacity-25">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="small fw-bold text-white text-truncate" id="overview-part-name">{{ best_printer.current_task }}</span>
+                        <span class="badge bg-primary bg-opacity-25 text-primary" id="overview-part-sku">Печать</span>
+                    </div>
+                    <div class="d-flex justify-content-between text-muted" style="font-size: 0.75rem;">
+                        <span>Станок: <strong class="text-white" id="overview-printer-name">{{ best_printer.name }}</strong></span>
+                        <span>Осталось: <strong class="text-info" id="overview-remaining">расчёт...</strong></span>
+                    </div>
+                </div>
+                {% else %}
+                <p class="text-muted small mb-2">Все станки свободны. Отображается демонстрационный 3D-образец:</p>
+                {% endif %}
+            </div>
+
+            <!-- 3D-холст, привязанный к лидеру печати -->
+            <div id="farm3d-canvas-container"
+                 data-printer-id="{{ best_printer.id if best_printer else '' }}"
+                 data-progress="{{ best_printer.current_progress if best_printer else 65 }}"
+                 data-has-job="{{ '1' if best_printer else '0' }}">
+                <div class="canvas-overlay-badge" id="overview-top-badge">
+                    {% if best_printer %}
+                        <i class="bi bi-cpu text-success me-1"></i> {{ best_printer.name }} | {{ best_printer.spool_material }} ({{ best_printer.spool_color }})
+                    {% else %}
+                        <i class="bi bi-broadcast text-primary me-1"></i> Демо-образец FDM-синтеза
+                    {% endif %}
+                </div>
+                <div class="canvas-overlay-layer" id="overview-layer-badge">
+                    {% if best_printer %}
+                        <i class="bi bi-layers-fill me-1"></i> Готовность: {{ best_printer.current_progress }}%
+                    {% else %}
+                        <i class="bi bi-layers-fill me-1"></i> Ожидание запуска печати
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center small text-muted mt-2 pt-1">
+                <span>Активных потоков: <strong class="text-white">{{ stats.printers_printing }}</strong></span>
+                {% if best_printer %}
+                <button type="button" onclick="openPrinterTelemetryModal({{ best_printer.id }})" class="btn btn-sm btn-outline-primary py-1 px-2" style="font-size: 0.75rem;">
+                    <i class="bi bi-arrows-fullscreen me-1"></i> Открыть 3D-телеметрию
+                </button>
+                {% else %}
+                <span class="text-success"><i class="bi bi-check2-circle me-1"></i>Готов к работе</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Правая колонка: Состояние станков фермы -->
+    <div class="col-lg-8">
+        <div class="glass-card p-3 h-100">
+            <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+                <h6 class="fw-bold mb-0"><i class="bi bi-cpu-fill text-primary me-2"></i>Парк 3D-принтеров мастерской</h6>
+                <div class="d-flex align-items-center gap-2 printer-filter-group">
+                    <button type="button" class="btn btn-sm btn-primary active py-0 px-2" style="font-size: 0.75rem;" onclick="filterPrinters('all', this)">Все</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary text-light py-0 px-2" style="font-size: 0.75rem;" onclick="filterPrinters('printing', this)">В печати</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary text-light py-0 px-2" style="font-size: 0.75rem;" onclick="filterPrinters('idle', this)">Свободны</button>
+                    <a href="/printers" class="small text-primary text-decoration-none ms-2">Управление &rarr;</a>
+                </div>
+            </div>
+
+            <div class="row g-3">
+                {% for p in printers %}
+                <div class="col-md-6 printer-filter-item" data-status="{{ p.status }}">
+                    <div class="p-3 rounded-3 bg-dark border border-secondary border-opacity-25 h-100 glass-card-hover d-flex flex-column justify-content-between">
+                        <div>
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="fw-bold text-white">{{ p.name }}</span>
+                                <span class="status-pill pill-{{ p.status }}">
+                                    <span class="status-dot"></span>
+                                    {{ p.status | printer_status_ru }}
+                                </span>
+                            </div>
+                            <div class="small text-muted mb-2">{{ p.model }} • Наработка: {{ p.total_print_time_hours }} ч</div>
+
+                            <div class="small mb-2">
+                                <span class="text-muted">Катушка:</span>
+                                {% if p.spool_material %}
+                                    <span class="text-info fw-semibold">{{ p.spool_material }} ({{ p.spool_color }}) — {{ p.spool_weight|int }} г</span>
+                                {% else %}
+                                    <span class="text-danger">Не установлена</span>
+                                {% endif %}
+                            </div>
+
+                            {% if p.status == 'printing' and p.current_task %}
+                            <div class="mt-2 pt-2 border-top border-secondary border-opacity-25">
+                                <div class="d-flex justify-content-between small mb-1">
+                                    <span class="text-truncate text-white fw-semibold" style="max-width: 75%;">{{ p.current_task }} ({{ p.current_qty }} шт.)</span>
+                                    <span class="text-primary fw-bold">{{ p.current_progress }}%</span>
+                                </div>
+                                <div class="progress mb-2">
+                                    <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary" style="width: {{ p.current_progress }}%"></div>
+                                </div>
+                            </div>
+                            {% else %}
+                            <div class="small text-muted mt-2 pt-2 border-top border-secondary border-opacity-25 mb-2">
+                                Текущая задача: <span class="text-white">{{ p.current_task or 'Ожидание назначения' }}</span>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <button type="button" onclick="openPrinterTelemetryModal({{ p.id }})" class="btn btn-sm btn-outline-primary w-100 mt-1" style="font-size: 0.78rem;">
+                            <i class="bi bi-badge-3d me-1"></i> 3D-Камера и срез детали
+                        </button>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Нижний ряд: Ближайшие заказы и лента заданий -->
+<div class="row g-4">
+    <div class="col-lg-7">
+        <div class="glass-card h-100">
+            <div class="p-3 border-bottom border-secondary border-opacity-25 d-flex justify-content-between align-items-center">
+                <span class="fw-bold"><i class="bi bi-calendar-event text-primary me-2"></i>Контроль сроков сдачи заказов</span>
+                <a href="/orders" class="small text-primary text-decoration-none">Все заказы &rarr;</a>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Заказ</th>
+                            <th>Заказчик</th>
+                            <th>Срок сдачи</th>
+                            <th>Готовность</th>
+                            <th>Статус</th>
+                            <th>Сумма</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for o in orders %}
+                        <tr>
+                            <td class="fw-bold text-primary">#ORD-{{ "%04d"|format(o.id) }}</td>
+                            <td>{{ o.client_name }}</td>
+                            <td>
+                                <span class="{% if o.is_overdue %}text-danger fw-bold{% endif %}">
+                                    {{ o.deadline | date_ru }}
+                                </span>
+                            </td>
+                            <td>
+                                <span class="small text-muted">Печать: {{ o.printed_qty }}/{{ o.total_qty }} | Упак: {{ o.packed_qty }}</span>
+                            </td>
+                            <td>
+                                <span class="status-pill pill-{{ o.status }}">
+                                    <span class="status-dot"></span>
+                                    {{ o.status | order_status_ru }}
+                                </span>
+                            </td>
+                            <td class="fw-bold">{{ o.total_price | rub }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-5">
+        <div class="glass-card h-100">
+            <div class="p-3 border-bottom border-secondary border-opacity-25 d-flex justify-content-between align-items-center">
+                <span class="fw-bold"><i class="bi bi-activity text-success me-2"></i>Последние задания в цехе</span>
+                <a href="/queue" class="small text-primary text-decoration-none">Очередь &rarr;</a>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Задание</th>
+                            <th>Изделие</th>
+                            <th>Станок</th>
+                            <th>Статус</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for j in recent_jobs %}
+                        <tr>
+                            <td class="text-muted small">#{{ j.id }}</td>
+                            <td>
+                                <div class="fw-semibold text-white small">{{ j.product_name }}</div>
+                                <div class="text-muted" style="font-size: 0.72rem;">Партия: {{ j.quantity }} шт. • {{ j.material }}</div>
+                            </td>
+                            <td class="small">{{ j.printer_name or 'В очереди' }}</td>
+                            <td>
+                                <span class="status-pill pill-{{ j.status }}">
+                                    <span class="status-dot"></span>
+                                    {{ j.status | job_status_ru }}
+                                </span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

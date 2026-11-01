@@ -1,0 +1,337 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div>
+        <h3 class="fw-bold mb-0">Парк 3D-принтеров и техническое обслуживание</h3>
+        <p class="text-muted small mb-0">Мониторинг моточасов, 3D-контроль печатаемых деталей, замена катушек и ремонт</p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+        <button class="btn btn-outline-warning" data-bs-toggle="modal" data-bs-target="#newMaintModal">
+            <i class="bi bi-wrench-adjustable me-1"></i> Оформить заявку на ТО
+        </button>
+        {% if session.role in ['admin', 'manager'] %}
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addPrinterModal">
+            <i class="bi bi-plus-lg me-1"></i> Добавить станок
+        </button>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Панель фильтрации по статусам и переключения вида -->
+{% set count_all = printers | length %}
+{% set count_printing = printers | selectattr('status', 'equalto', 'printing') | list | length %}
+{% set count_idle = printers | selectattr('status', 'equalto', 'idle') | list | length %}
+{% set count_maint = printers | selectattr('status', 'equalto', 'maintenance') | list | length %}
+
+<div class="glass-card p-3 mb-4 d-flex flex-wrap justify-content-between align-items-center gap-3">
+    <!-- Фильтры по статусу -->
+    <div class="d-flex flex-wrap align-items-center gap-2 printer-filter-group">
+        <span class="small text-muted me-1"><i class="bi bi-funnel-fill text-primary me-1"></i>Фильтр:</span>
+        <button type="button" class="btn btn-sm btn-primary active" onclick="filterPrinters('all', this)">
+            Все станки <span class="badge bg-dark ms-1">{{ count_all }}</span>
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-secondary text-light" onclick="filterPrinters('printing', this)">
+            <span class="status-dot d-inline-block me-1" style="background:#10b981;"></span>Идёт печать <span class="badge bg-dark ms-1">{{ count_printing }}</span>
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-secondary text-light" onclick="filterPrinters('idle', this)">
+            <span class="status-dot d-inline-block me-1" style="background:#3b82f6;"></span>Свободны <span class="badge bg-dark ms-1">{{ count_idle }}</span>
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-secondary text-light" onclick="filterPrinters('maintenance', this)">
+            <span class="status-dot d-inline-block me-1" style="background:#ef4444;"></span>На обслуживании <span class="badge bg-dark ms-1">{{ count_maint }}</span>
+        </button>
+    </div>
+
+    <!-- Переключатель режима отображения: Карточки / Стеллаж -->
+    <div class="btn-group" role="group">
+        <button type="button" id="btn-view-cards" class="btn btn-sm btn-primary" onclick="switchPrintersView('cards')">
+            <i class="bi bi-grid-fill me-1"></i> Карточки
+        </button>
+        <button type="button" id="btn-view-rack" class="btn btn-sm btn-outline-secondary text-light" onclick="switchPrintersView('rack')">
+            <i class="bi bi-hdd-rack-fill me-1"></i> Стеллаж фермы
+        </button>
+    </div>
+</div>
+
+<!-- Сообщение, если по выбранному фильтру нет станков -->
+<div id="printers-filter-empty" class="glass-card p-5 text-center mb-4 d-none">
+    <i class="bi bi-cpu fs-1 text-muted mb-2 d-block"></i>
+    <h6 class="fw-bold text-white">Нет 3D-принтеров с выбранным статусом</h6>
+    <p class="small text-muted mb-0">Переключите фильтр выше, чтобы отобразить все станки цеха.</p>
+</div>
+
+<!-- РЕЖИМ 1: КАРТОЧКИ 3D-ПРИНТЕРОВ -->
+<div id="view-cards" class="row g-4 mb-4">
+    {% for p in printers %}
+    <div class="col-md-6 col-xl-4 printer-filter-item" data-status="{{ p.status }}">
+        <div class="glass-card p-3 h-100 d-flex flex-column justify-content-between">
+            <div>
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h5 class="fw-bold text-white mb-0">{{ p.name }}</h5>
+                    <span class="status-pill pill-{{ p.status }}">
+                        <span class="status-dot"></span>
+                        {{ p.status | printer_status_ru }}
+                    </span>
+                </div>
+                <div class="text-muted small mb-3">{{ p.model }}</div>
+
+                <div class="row g-2 mb-3 text-center">
+                    <div class="col-4">
+                        <div class="p-2 rounded bg-dark border border-secondary border-opacity-25">
+                            <div class="text-muted" style="font-size: 0.7rem;">НАРАБОТКА</div>
+                            <div class="fw-bold text-white">{{ p.total_print_time_hours }} ч</div>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="p-2 rounded bg-dark border border-secondary border-opacity-25">
+                            <div class="text-muted" style="font-size: 0.7rem;">ВЫПОЛНЕНО</div>
+                            <div class="fw-bold text-success">{{ p.completed_jobs }}</div>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="p-2 rounded bg-dark border border-secondary border-opacity-25">
+                            <div class="text-muted" style="font-size: 0.7rem;">СБОИ / БРАК</div>
+                            <div class="fw-bold text-danger">{{ p.failed_jobs }}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between small mb-1">
+                        <span class="text-muted">Установленная катушка:</span>
+                        {% if p.material %}
+                            <span class="text-info fw-semibold">{{ p.material }} ({{ p.color }}) — {{ p.current_weight_g|int }} г</span>
+                        {% else %}
+                            <span class="text-danger">Не загружена</span>
+                        {% endif %}
+                    </div>
+                    {% if p.material and p.initial_weight_g %}
+                    <div class="progress">
+                        <div class="progress-bar {% if p.current_weight_g < 200 %}bg-danger{% else %}bg-info{% endif %}" style="width: {{ (p.current_weight_g / p.initial_weight_g) * 100 }}%"></div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div>
+                <button type="button" onclick="openPrinterTelemetryModal({{ p.id }})" class="btn btn-sm btn-primary w-100 mb-3 fw-semibold">
+                    <i class="bi bi-badge-3d-fill me-1"></i> Открыть 3D-стол и телеметрию
+                </button>
+
+                <form method="POST" action="/printers/{{ p.id }}/mount_spool" class="pt-2 border-top border-secondary border-opacity-25">
+                    <label class="form-label text-muted mb-1" style="font-size: 0.75rem;">Сменить катушку пластика на станке:</label>
+                    <div class="d-flex gap-2">
+                        <select name="spool_id" class="form-select form-select-sm">
+                            {% for s in spools %}
+                            <option value="{{ s.id }}" {% if p.current_spool_id == s.id %}selected{% endif %}>
+                                {{ s.material }} ({{ s.color }}) — остаток {{ s.current_weight_g|int }} г
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit" class="btn btn-sm btn-outline-info flex-shrink-0">
+                            <i class="bi bi-arrow-repeat me-1"></i>Загрузить
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- РЕЖИМ 2: СТЕЛЛАЖ ФЕРМЫ (RACK VIEW) -->
+<div id="view-rack" class="glass-card p-4 mb-4 d-none">
+    <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom border-secondary border-opacity-25">
+        <div>
+            <h6 class="fw-bold mb-0 text-white"><i class="bi bi-hdd-rack-fill text-primary me-2"></i>Производственная стойка А1 (Многоярусный стеллаж 3D-фермы)</h6>
+            <span class="small text-muted">Визуализация физического расположения станков по слотам</span>
+        </div>
+        <span class="badge bg-dark border border-secondary text-info">Питание линии: 220В / Стабилизировано</span>
+    </div>
+
+    <div class="row g-3">
+        {% for p in printers %}
+        <div class="col-md-6 col-xl-4 printer-filter-item" data-status="{{ p.status }}">
+            <div class="p-3 rounded-3 bg-dark border border-secondary border-opacity-50 h-100 d-flex flex-column justify-content-between"
+                 style="border-top: 3px solid {% if p.status == 'printing' %}#10b981{% elif p.status == 'idle' %}#3b82f6{% else %}#ef4444{% endif %} !important;">
+                <div>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="badge bg-black border border-secondary text-muted">СЛОТ А1-{{ "%02d"|format(loop.index) }}</span>
+                        <span class="status-pill pill-{{ p.status }}">
+                            <span class="status-dot"></span>
+                            {{ p.status | printer_status_ru }}
+                        </span>
+                    </div>
+                    <h5 class="fw-bold text-white mb-0">{{ p.name }}</h5>
+                    <div class="small text-muted mb-3">{{ p.model }} • {{ p.total_print_time_hours }} ч</div>
+
+                    <div class="p-2 rounded bg-black bg-opacity-50 border border-secondary border-opacity-25 small mb-3">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted">Сырьё:</span>
+                            <span class="text-info fw-semibold">{{ p.material or 'Нет' }} ({{ p.color or '—' }})</span>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span class="text-muted">Деталь:</span>
+                            <span class="text-white text-truncate ms-2" style="max-width: 170px;">{{ p.current_task or 'Ожидание' }}</span>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between small mb-1">
+                        <span class="text-muted">Прогресс печати:</span>
+                        <span class="fw-bold {% if p.status == 'printing' %}text-success{% else %}text-muted{% endif %}">{{ p.current_progress or 0 }}%</span>
+                    </div>
+                    <div class="progress mb-3">
+                        <div class="progress-bar {% if p.status == 'printing' %}progress-bar-striped progress-bar-animated bg-success{% else %}bg-secondary{% endif %}"
+                             style="width: {{ p.current_progress or 0 }}%"></div>
+                    </div>
+                </div>
+
+                <button type="button" onclick="openPrinterTelemetryModal({{ p.id }})" class="btn btn-sm btn-primary w-100 fw-semibold">
+                    <i class="bi bi-badge-3d me-1"></i> 3D-Двойник станка
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Журнал заявок на ТО -->
+<div class="glass-card">
+    <div class="p-3 border-bottom border-secondary border-opacity-25 fw-bold">
+        <i class="bi bi-tools text-warning me-2"></i>Журнал сервисного обслуживания и ремонта оборудования
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th>№</th>
+                    <th>3D-Принтер</th>
+                    <th>Описание неисправности / регламента</th>
+                    <th>Приоритет</th>
+                    <th>Статус заявки</th>
+                    <th>Дата открытия</th>
+                    <th>Действие</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for m in maintenance %}
+                <tr>
+                    <td class="text-muted">#{{ m.id }}</td>
+                    <td>
+                        <div class="fw-bold text-white">{{ m.printer_name }}</div>
+                        <div class="small text-muted">{{ m.printer_model }}</div>
+                    </td>
+                    <td>
+                        <div>{{ m.description }}</div>
+                        {% if m.resolution_notes %}
+                        <div class="small text-success mt-1"><i class="bi bi-check2 me-1"></i>Отчёт: {{ m.resolution_notes }}</div>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="status-pill pill-{{ m.priority }}">
+                            <span class="status-dot"></span>
+                            {{ m.priority | maint_priority_ru }}
+                        </span>
+                    </td>
+                    <td>
+                        <span class="status-pill pill-{{ m.status }}">
+                            <span class="status-dot"></span>
+                            {{ m.status | maint_status_ru }}
+                        </span>
+                    </td>
+                    <td class="small text-muted">{{ m.created_at | datetime_ru }}</td>
+                    <td>
+                        {% if m.status == 'open' %}
+                        <form method="POST" class="d-flex gap-2">
+                            <input type="hidden" name="action_type" value="close_maintenance">
+                            <input type="hidden" name="request_id" value="{{ m.id }}">
+                            <input type="text" name="resolution_notes" class="form-control form-control-sm" placeholder="Что сделано..." required>
+                            <button type="submit" class="btn btn-sm btn-success flex-shrink-0">Завершить ТО</button>
+                        </form>
+                        {% else %}
+                        <span class="small text-muted">Закрыта {{ m.resolved_at | datetime_ru }}</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Модальное окно оформления заявки на ТО -->
+<div class="modal fade" id="newMaintModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header border-secondary border-opacity-25">
+                <h5 class="modal-title fw-bold"><i class="bi bi-wrench-adjustable text-warning me-2"></i>Заявка на обслуживание 3D-принтера</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST">
+                <input type="hidden" name="action_type" value="create_maintenance">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">Оборудование</label>
+                        <select name="printer_id" class="form-select" required>
+                            {% for p in printers %}
+                            <option value="{{ p.id }}">{{ p.name }} ({{ p.model }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">Срочность работ</label>
+                        <select name="priority" class="form-select">
+                            <option value="normal">Плановый регламент</option>
+                            <option value="urgent">Срочный ремонт (авария)</option>
+                            <option value="low">Низкий приоритет</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">Описание неисправности или работ</label>
+                        <textarea name="description" class="form-control" rows="3" placeholder="Например: Замена сопла 0.4 мм, натяжение ремней, калибровка стола..." required></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary border-opacity-25">
+                    <button type="submit" class="btn btn-warning text-dark fw-semibold">Перевести станок на ТО</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно добавления нового принтера -->
+<div class="modal fade" id="addPrinterModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header border-secondary border-opacity-25">
+                <h5 class="modal-title fw-bold">Ввод в эксплуатацию нового 3D-принтера</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST">
+                <input type="hidden" name="action_type" value="add_printer">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">Инвентарное имя в цехе</label>
+                        <input type="text" name="name" class="form-control" placeholder="Bambu-06" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">Модель оборудования</label>
+                        <input type="text" name="model" class="form-control" placeholder="Bambu Lab P1S / Creality K1C" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">Стартовая катушка пластика</label>
+                        <select name="spool_id" class="form-select">
+                            <option value="">Без катушки</option>
+                            {% for s in spools %}
+                            <option value="{{ s.id }}">{{ s.material }} ({{ s.color }}) — {{ s.current_weight_g|int }} г</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary border-opacity-25">
+                    <button type="submit" class="btn btn-primary fw-semibold">Добавить в парк</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

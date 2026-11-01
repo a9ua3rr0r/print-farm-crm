@@ -1,0 +1,199 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div>
+        <h3 class="fw-bold mb-0">Очередь печати и участок постобработки</h3>
+        <p class="text-muted small mb-0">Распределение заданий по 3D-принтерам, учёт брака и упаковка готовых партий</p>
+    </div>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newJobModal">
+        <i class="bi bi-play-circle me-1"></i> Поставить задание на печать
+    </button>
+</div>
+
+<div class="row g-4">
+    <!-- Таблица очереди печати -->
+    <div class="col-lg-8">
+        <div class="glass-card">
+            <div class="p-3 border-bottom border-secondary border-opacity-25 d-flex justify-content-between align-items-center">
+                <span class="fw-bold"><i class="bi bi-list-task text-primary me-2"></i>Производственные задания на 3D-печать</span>
+                <span class="small text-muted">Нажмите «Сделать шаг печати» в меню слева для продвижения</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>№</th>
+                            <th>Изделие и заказ</th>
+                            <th>3D-Принтер и сырьё</th>
+                            <th>Ход выполнения</th>
+                            <th>Статус</th>
+                            <th>Контроль</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for j in jobs %}
+                        <tr>
+                            <td class="text-muted fw-semibold">#{{ j.id }}</td>
+                            <td>
+                                <div class="fw-bold text-white">{{ j.product_name }} ({{ j.quantity }} шт.)</div>
+                                <div class="small text-muted">Заказ #ORD-{{ "%04d"|format(j.order_id) }} • {{ j.client_name }}</div>
+                                {% if j.fail_reason %}
+                                <div class="small text-danger mt-1"><i class="bi bi-exclamation-octagon me-1"></i>Причина: {{ j.fail_reason }}</div>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="fw-semibold text-white">{{ j.printer_name or 'Ожидает станка' }}</div>
+                                <div class="small text-info">
+                                    {% if j.spool_material %}
+                                        {{ j.spool_material }} ({{ j.spool_color }})
+                                    {% else %}
+                                        {{ j.material }}
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td style="min-width: 150px;">
+                                <div class="d-flex justify-content-between small mb-1">
+                                    <span class="text-muted">{{ (j.weight_g * j.quantity)|int }} г</span>
+                                    <span class="fw-bold text-white">{{ j.progress }}%</span>
+                                </div>
+                                <div class="progress">
+                                    <div class="progress-bar {% if j.status == 'printing' %}progress-bar-striped progress-bar-animated bg-primary{% elif j.status == 'completed' %}bg-success{% elif j.status == 'failed' %}bg-danger{% else %}bg-secondary{% endif %}" style="width: {{ j.progress }}%"></div>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="status-pill pill-{{ j.status }}">
+                                    <span class="status-dot"></span>
+                                    {{ j.status | job_status_ru }}
+                                </span>
+                            </td>
+                            <td>
+                                {% if j.status in ['printing', 'pending'] %}
+                                <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#failModal{{ j.id }}" title="Зафиксировать технологический брак">
+                                    <i class="bi bi-exclamation-triangle me-1"></i>Брак
+                                </button>
+
+                                <!-- Модальное окно фиксации брака -->
+                                <div class="modal fade" id="failModal{{ j.id }}" tabindex="-1">
+                                    <div class="modal-dialog">
+                                        <div class="modal-content">
+                                            <div class="modal-header border-secondary border-opacity-25">
+                                                <h6 class="modal-title fw-bold">Акт технологического брака (Задание #{{ j.id }})</h6>
+                                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                            </div>
+                                            <form method="POST" action="/queue/{{ j.id }}/fail">
+                                                <div class="modal-body">
+                                                    <p class="small text-muted mb-2">Деталь: <strong class="text-white">{{ j.product_name }} ({{ j.quantity }} шт.)</strong></p>
+                                                    <label class="form-label small text-muted">Причина остановки / отбраковки</label>
+                                                    <select name="reason" class="form-select">
+                                                        <option value="Отрыв детали от стола (потеря адгезии)">Отрыв детали от стола (потеря адгезии)</option>
+                                                        <option value="Засор экструдера / термобарьера">Засор экструдера / термобарьера</option>
+                                                        <option value="Смещение слоёв по оси X/Y (Layer Shift)">Смещение слоёв по оси X/Y (Layer Shift)</option>
+                                                        <option value="Деформация / Деламинация пластика">Деформация / Деламинация пластика</option>
+                                                    </select>
+                                                </div>
+                                                <div class="modal-footer border-secondary border-opacity-25">
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+                                                    <button type="submit" class="btn btn-sm btn-danger">Остановить и списать в брак</button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% else %}
+                                <span class="text-muted small">{{ j.finished_at | datetime_ru }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Участок постобработки и упаковки -->
+    <div class="col-lg-4">
+        <div class="glass-card h-100">
+            <div class="p-3 border-bottom border-secondary border-opacity-25 d-flex justify-content-between align-items-center">
+                <span class="fw-bold text-success"><i class="bi bi-box-seam-fill me-2"></i>Участок постобработки и упаковки</span>
+                <span class="badge bg-success">{{ pack_items|length }} поз.</span>
+            </div>
+            <div class="p-3">
+                <p class="small text-muted mb-3">После завершения печати детали очищаются от поддержек, проходят ОТК и упаковываются для клиента:</p>
+                {% if pack_items %}
+                    {% for it in pack_items %}
+                    <div class="p-3 mb-3 rounded-3 bg-dark border border-secondary border-opacity-25">
+                        <div class="d-flex justify-content-between align-items-start mb-1">
+                            <div>
+                                <span class="badge bg-secondary mb-1">{{ it.sku }}</span>
+                                <div class="fw-bold text-white">{{ it.product_name }}</div>
+                            </div>
+                            <span class="badge bg-success fs-6">Готово: {{ it.ready_to_pack }} шт.</span>
+                        </div>
+                        <div class="small text-muted mb-3">
+                            Заказ <strong class="text-primary">#ORD-{{ "%04d"|format(it.order_id) }}</strong> ({{ it.client_name }})
+                        </div>
+                        <form method="POST" action="/items/{{ it.id }}/pack" class="d-flex gap-2">
+                            <input type="number" name="pack_qty" class="form-control form-control-sm" value="{{ it.ready_to_pack }}" min="1" max="{{ it.ready_to_pack }}" required>
+                            <button type="submit" class="btn btn-sm btn-success w-100 fw-semibold">
+                                <i class="bi bi-check2-all me-1"></i> Подтвердить упаковку
+                            </button>
+                        </form>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="text-center py-5 text-muted">
+                        <i class="bi bi-check2-circle fs-1 d-block mb-2 text-success opacity-50"></i>
+                        Все напечатанные изделия уже упакованы!
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно назначения печати -->
+<div class="modal fade" id="newJobModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header border-secondary border-opacity-25">
+                <h5 class="modal-title fw-bold"><i class="bi bi-send-check text-primary me-2"></i>Отправка задания на 3D-принтер</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">Позиция заказа, требующая печати</label>
+                        <select name="order_item_id" class="form-select" required>
+                            {% for it in items %}
+                            <option value="{{ it.id }}">
+                                #ORD-{{ "%04d"|format(it.order_id) }} — {{ it.product_name }} ({{ it.material }}, осталось: {{ it.remaining_qty }} шт.)
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">Целевой 3D-принтер</label>
+                        <select name="printer_id" class="form-select" required>
+                            {% for p in printers %}
+                            <option value="{{ p.id }}">
+                                {{ p.name }} ({{ p.model }}) — {{ p.status | printer_status_ru }} [Сырьё: {{ p.spool_material or 'Нет' }}]
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text text-muted small">Если принтер свободен, печать запустится сразу; если занят — встанет в очередь.</div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small text-muted">Количество изделий на столе (шт.)</label>
+                        <input type="number" name="quantity" class="form-control" value="1" min="1" max="20" required>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary border-opacity-25">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-primary fw-semibold">Отправить в производство</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

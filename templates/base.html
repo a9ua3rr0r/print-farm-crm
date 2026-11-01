@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PrintFarm 3D — Информационная система учёта 3D-печати</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+<div class="container-fluid">
+    <div class="row">
+        <!-- Боковой сайдбар -->
+        <nav class="col-md-3 col-lg-2 d-md-block sidebar p-3 d-flex flex-column justify-content-between">
+            <div>
+                <a href="/" class="d-flex align-items-center mb-4 text-white text-decoration-none">
+                    <div class="p-2 rounded-3 bg-primary bg-opacity-25 text-primary me-2 border border-primary border-opacity-25">
+                        <i class="bi bi-box-seam-fill fs-4"></i>
+                    </div>
+                    <div>
+                        <div class="fs-5 fw-bold">PrintFarm<span class="text-primary">.3D</span></div>
+                        <div style="font-size: 0.68rem; color: #94a3b8; letter-spacing: 0.4px;">СИСТЕМА УПРАВЛЕНИЯ ЦЕХОМ</div>
+                    </div>
+                </a>
+
+                <div class="small fw-bold text-muted px-2 mb-2" style="font-size: 0.7rem; letter-spacing: 0.6px;">РАБОЧИЕ РАЗДЕЛЫ</div>
+                <ul class="nav flex-column mb-auto">
+                    <li class="nav-item">
+                        <a href="/" class="nav-link {% if request.path == '/' %}active{% endif %}">
+                            <i class="bi bi-grid-1x2-fill me-2"></i> Сводка по цеху
+                        </a>
+                    </li>
+                    {% if session.role in ['admin', 'manager'] %}
+                    <li class="nav-item">
+                        <a href="/orders" class="nav-link {% if request.path.startswith('/orders') %}active{% endif %}">
+                            <i class="bi bi-journal-check me-2"></i> Заказы и клиенты
+                        </a>
+                    </li>
+                    {% endif %}
+                    {% if session.role in ['admin', 'operator', 'manager'] %}
+                    <li class="nav-item">
+                        <a href="/queue" class="nav-link {% if request.path.startswith('/queue') %}active{% endif %}">
+                            <i class="bi bi-layers-half me-2"></i> Очередь печати
+                        </a>
+                    </li>
+                    {% endif %}
+                    <li class="nav-item">
+                        <a href="/printers" class="nav-link {% if request.path.startswith('/printers') %}active{% endif %}">
+                            <i class="bi bi-cpu-fill me-2"></i> Парк 3D-принтеров
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="/warehouse" class="nav-link {% if request.path.startswith('/warehouse') %}active{% endif %}">
+                            <i class="bi bi-disc-fill me-2"></i> Склад и каталог
+                        </a>
+                    </li>
+                    {% if session.role in ['admin', 'manager'] %}
+                    <li class="nav-item">
+                        <a href="/analytics" class="nav-link {% if request.path.startswith('/analytics') %}active{% endif %}">
+                            <i class="bi bi-bar-chart-line-fill me-2"></i> Аналитика и отчёты
+                        </a>
+                    </li>
+                    {% endif %}
+                    {% if session.role == 'admin' %}
+                    <li class="nav-item mt-2 pt-2 border-top border-secondary border-opacity-25">
+                        <a href="/users" class="nav-link {% if request.path.startswith('/users') %}active{% endif %}">
+                            <i class="bi bi-people-fill me-2"></i> Сотрудники цеха
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </div>
+
+            <!-- Блок имитатора печати и карточка сотрудника -->
+            <div class="mt-4">
+                <div class="glass-card p-3 mb-3 border-warning border-opacity-25">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <span class="small text-warning fw-bold"><i class="bi bi-lightning-charge-fill"></i> Симулятор цеха</span>
+                        <span id="badge-sim-mode" class="badge {% if sim_auto_enabled %}bg-success text-white{% else %}bg-warning text-dark{% endif %}" style="font-size: 0.65rem;">
+                            {{ 'АВТО ВКЛ' if sim_auto_enabled else 'РУЧНОЙ' }}
+                        </span>
+                    </div>
+
+                    <div class="form-check form-switch mb-2">
+                        <input class="form-check-input" type="checkbox" id="switch-sim-auto" {% if sim_auto_enabled %}checked{% endif %}>
+                        <label class="form-check-label text-muted" for="switch-sim-auto" style="font-size: 0.75rem;">
+                            Авто-печать по таймеру
+                        </label>
+                    </div>
+
+                    <button id="btn-sim-tick" class="btn btn-warning btn-sm w-100 fw-semibold text-dark shadow-sm">
+                        <i class="bi bi-fast-forward-fill me-1"></i> Сделать шаг (+20%)
+                    </button>
+                </div>
+
+                <div class="p-2 rounded-3 bg-dark border border-secondary border-opacity-25 d-flex align-items-center justify-content-between">
+                    <div class="d-flex align-items-center gap-2 text-truncate">
+                        <div class="rounded-circle bg-primary bg-opacity-25 text-primary d-flex align-items-center justify-content-center fw-bold" style="width: 34px; height: 34px; flex-shrink: 0;">
+                            {{ (session.full_name or 'А')[:1] }}
+                        </div>
+                        <div class="text-truncate">
+                            <div class="small fw-semibold text-white text-truncate">{{ session.full_name }}</div>
+                            <div style="font-size: 0.72rem; color: #94a3b8;">{{ session.role | role_ru }}</div>
+                        </div>
+                    </div>
+                    <a href="/logout" class="btn btn-sm btn-outline-danger border-0 ms-1" title="Выйти из системы">
+                        <i class="bi bi-box-arrow-right"></i>
+                    </a>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Основная рабочая область -->
+        <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 py-3">
+            <!-- Верхняя панель статуса и Центр живых уведомлений цеха -->
+            <div class="d-flex justify-content-between align-items-center pb-3 mb-3 border-bottom border-secondary border-opacity-25">
+                <div class="d-flex align-items-center gap-3 small text-muted">
+                    <span><i class="bi bi-hdd-network text-success me-1"></i> Сервер: <strong class="text-white">PrintFarm-Node01</strong></span>
+                    <span class="d-none d-sm-inline">•</span>
+                    <span class="d-none d-sm-inline"><i class="bi bi-database-check text-primary me-1"></i> СУБД: <strong class="text-white">PostgreSQL 16</strong></span>
+                </div>
+
+                <!-- Выпадающий список живых уведомлений (Smart Notifications) -->
+                <div class="dropdown">
+                    <button class="btn btn-sm btn-dark border border-secondary border-opacity-50 position-relative px-3 py-1" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-bell-fill {% if notifications_count > 0 %}text-warning{% else %}text-muted{% endif %} me-1"></i>
+                        <span class="small text-light">События цеха</span>
+                        {% if notifications_count > 0 %}
+                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 0.68rem;">
+                            {{ notifications_count }}
+                        </span>
+                        {% endif %}
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-end dropdown-menu-dark glass-dropdown p-0 shadow-lg" style="width: 360px; max-height: 420px; overflow-y: auto;">
+                        <div class="p-3 border-bottom border-secondary border-opacity-25 d-flex justify-content-between align-items-center">
+                            <span class="fw-bold small text-white"><i class="bi bi-broadcast-pin text-primary me-1"></i>Оперативные оповещения</span>
+                            <span class="badge bg-secondary">{{ notifications_count }} активных</span>
+                        </div>
+                        {% if notifications_list %}
+                            {% for n in notifications_list %}
+                            <a href="{{ n.url }}" class="dropdown-item p-3 border-bottom border-secondary border-opacity-10 text-wrap notif-item">
+                                <div class="d-flex align-items-start gap-2">
+                                    <i class="bi {{ n.icon }} fs-5 mt-1"></i>
+                                    <div>
+                                        <div class="fw-bold small text-white">{{ n.title }}</div>
+                                        <div class="text-muted" style="font-size: 0.78rem;">{{ n.text }}</div>
+                                    </div>
+                                </div>
+                            </a>
+                            {% endfor %}
+                        {% else %}
+                            <div class="p-4 text-center text-muted small">
+                                <i class="bi bi-check2-circle fs-3 text-success d-block mb-1"></i>
+                                Критических замечаний по цеху нет
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for cat, msg in messages %}
+                        <div class="alert alert-{{ cat }} alert-dismissible fade show border-0 shadow-sm mb-3" role="alert">
+                            <i class="bi bi-info-circle-fill me-2"></i> {{ msg }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+</div>
+
+<!-- Глобальное модальное окно: Цифровой двойник и 3D-телеметрия станка -->
+<div class="modal fade" id="printerTelemetryModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-secondary border-opacity-25">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="p-2 rounded-3 bg-primary bg-opacity-25 text-primary">
+                        <i class="bi bi-badge-3d-fill fs-4"></i>
+                    </div>
+                    <div>
+                        <div class="small text-muted">ЦИФРОВОЙ ДВОЙНИК И ПОСЛОЙНЫЙ КОНТРОЛЬ FDM</div>
+                        <h5 class="modal-title fw-bold mb-0" id="tel-printer-title">Загрузка станка...</h5>
+                    </div>
+                </div>
+                <div class="d-flex align-items-center gap-3">
+                    <span id="tel-printer-status" class="status-pill pill-idle">Свободен</span>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+            </div>
+            <div class="modal-body p-4">
+                <div class="row g-4">
+                    <div class="col-lg-7">
+                        <div id="telemetry3d-canvas-container">
+                            <div class="canvas-overlay-badge">
+                                <i class="bi bi-camera-video-fill text-primary me-1"></i> Камера 3D-среза (вращайте мышью)
+                            </div>
+                            <div class="canvas-overlay-layer" id="tel-layer-badge">
+                                <i class="bi bi-layers-fill me-1"></i> Слой: 0 из 0
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-5 d-flex flex-column justify-content-between">
+                        <div>
+                            <div class="p-3 rounded-3 bg-dark border border-secondary border-opacity-25 mb-3">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <span class="badge bg-primary bg-opacity-25 text-primary" id="tel-part-sku">SKU</span>
+                                    <span class="small text-muted">Осталось: <strong class="text-white" id="tel-remaining">—</strong></span>
+                                </div>
+                                <h6 class="fw-bold text-white mb-1" id="tel-part-name">—</h6>
+                                <div class="small text-muted mb-3" id="tel-order-info">—</div>
+
+                                <div class="d-flex justify-content-between small mb-1">
+                                    <span class="text-muted">Готовность по слоям:</span>
+                                    <span class="fw-bold text-primary" id="tel-progress-pct">0%</span>
+                                </div>
+                                <div class="progress" style="height: 10px;">
+                                    <div id="tel-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-primary" style="width: 0%"></div>
+                                </div>
+                            </div>
+
+                            <div class="row g-2 mb-3">
+                                <div class="col-6">
+                                    <div class="telemetry-sensor-box">
+                                        <div class="small text-muted"><i class="bi bi-thermometer-high text-danger me-1"></i>Экструдер (Сопло)</div>
+                                        <div class="fs-5 fw-bold text-white" id="tel-nozzle-temp">25 °C</div>
+                                        <div class="text-muted" style="font-size: 0.72rem;" id="tel-nozzle-target">Цель: 0 °C</div>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="telemetry-sensor-box">
+                                        <div class="small text-muted"><i class="bi bi-grid-3x3 text-warning me-1"></i>Стол нагрева (PEI)</div>
+                                        <div class="fs-5 fw-bold text-white" id="tel-bed-temp">24 °C</div>
+                                        <div class="text-muted" style="font-size: 0.72rem;" id="tel-bed-target">Цель: 0 °C</div>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="telemetry-sensor-box">
+                                        <div class="small text-muted"><i class="bi bi-speedometer2 text-info me-1"></i>Скорость подачи</div>
+                                        <div class="fw-bold text-white" id="tel-speed">0 мм/с</div>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="telemetry-sensor-box">
+                                        <div class="small text-muted"><i class="bi bi-fan text-success me-1"></i>Обдув модели</div>
+                                        <div class="fw-bold text-white" id="tel-fan">0%</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="telemetry-sensor-box mb-3 d-flex justify-content-between align-items-center">
+                                <div class="d-flex align-items-center gap-2">
+                                    <span id="tel-spool-dot" class="spool-color-dot"></span>
+                                    <div>
+                                        <div class="small text-muted" style="font-size: 0.72rem;">АКТИВНАЯ КАТУШКА ФИЛАМЕНТА</div>
+                                        <div class="fw-bold text-white small" id="tel-spool-name">—</div>
+                                    </div>
+                                </div>
+                                <span class="badge bg-dark border border-secondary text-info" id="tel-spool-weight">0 г</span>
+                            </div>
+                        </div>
+
+                        <div class="d-flex gap-2 pt-2 border-top border-secondary border-opacity-25">
+                            <button type="button" id="btn-modal-step" onclick="stepPrinterInModal()" class="btn btn-warning fw-semibold text-dark flex-grow-1">
+                                <i class="bi bi-fast-forward-fill me-1"></i> Напечатать +20% слоёв
+                            </button>
+                            <form id="tel-fail-form" method="POST" action="">
+                                <input type="hidden" name="reason" value="Остановка оператором через 3D-телеметрию (дефект слоя)">
+                                <button type="submit" class="btn btn-outline-danger">
+                                    <i class="bi bi-exclamation-octagon me-1"></i> Брак
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,203 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div>
+        <h3 class="fw-bold mb-0">Склад филамента и каталог 3D-моделей</h3>
+        <p class="text-muted small mb-0">Контроль остатка пластика на катушках и нормативы печати изделий</p>
+    </div>
+    <div class="d-flex gap-2">
+        <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#newSpoolModal">
+            <i class="bi bi-disc me-1"></i> Принять катушку на склад
+        </button>
+        {% if session.role in ['admin', 'manager'] %}
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newProductModal">
+            <i class="bi bi-box-seam me-1"></i> Добавить 3D-модель в каталог
+        </button>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Склад катушек пластика -->
+    <div class="col-lg-6">
+        <div class="glass-card h-100">
+            <div class="p-3 border-bottom border-secondary border-opacity-25 d-flex justify-content-between align-items-center">
+                <span class="fw-bold"><i class="bi bi-disc-fill text-info me-2"></i>Запасы пластика (катушки в цехе)</span>
+                <span class="badge bg-secondary">{{ spools|length }} катушек</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Материал и цвет</th>
+                            <th>Установлена</th>
+                            <th>Остаток массы</th>
+                            <th>Закупка</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for s in spools %}
+                        {% set pct = ((s.current_weight_g / s.initial_weight_g) * 100)|int %}
+                        <tr>
+                            <td>
+                                <div class="fw-bold text-white">{{ s.material }}</div>
+                                <div class="small text-muted">{{ s.color }}</div>
+                            </td>
+                            <td>
+                                {% if s.mounted_on %}
+                                    <span class="badge bg-primary bg-opacity-25 text-primary border border-primary border-opacity-25">{{ s.mounted_on }}</span>
+                                {% else %}
+                                    <span class="text-muted small">На стеллаже</span>
+                                {% endif %}
+                            </td>
+                            <td style="min-width: 165px;">
+                                <div class="d-flex justify-content-between small mb-1">
+                                    <span class="{% if pct < 20 %}text-danger fw-bold{% else %}text-white{% endif %}">
+                                        {{ s.current_weight_g|int }} из {{ s.initial_weight_g|int }} г
+                                    </span>
+                                    <span class="text-muted">{{ pct }}%</span>
+                                </div>
+                                <div class="progress">
+                                    <div class="progress-bar {% if pct < 20 %}bg-danger{% elif pct < 40 %}bg-warning{% else %}bg-success{% endif %}" style="width: {{ pct }}%"></div>
+                                </div>
+                            </td>
+                            <td class="fw-semibold">{{ s.cost | rub }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Каталог серийных 3D-изделий -->
+    <div class="col-lg-6">
+        <div class="glass-card h-100">
+            <div class="p-3 border-bottom border-secondary border-opacity-25 d-flex justify-content-between align-items-center">
+                <span class="fw-bold"><i class="bi bi-collection-fill text-primary me-2"></i>Каталог 3D-моделей и нормативов</span>
+                <span class="badge bg-secondary">{{ products|length }} изделий</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Артикул</th>
+                            <th>Наименование</th>
+                            <th>Норма расхода</th>
+                            <th>Цена за шт.</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in products %}
+                        <tr>
+                            <td><span class="badge bg-dark border border-secondary text-info">{{ p.sku }}</span></td>
+                            <td>
+                                <div class="fw-semibold text-white">{{ p.name }}</div>
+                                <div class="small text-muted">Пластик: {{ p.material }}</div>
+                            </td>
+                            <td class="small">
+                                <div><i class="bi bi-Feather me-1 text-muted"></i>{{ p.weight_g }} г</div>
+                                <div class="text-muted"><i class="bi bi-clock me-1"></i>{{ p.print_time_min | duration_ru }}</div>
+                            </td>
+                            <td class="fw-bold text-white">{{ p.price | rub }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно добавления катушки -->
+<div class="modal fade" id="newSpoolModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header border-secondary border-opacity-25">
+                <h5 class="modal-title fw-bold">Оприходование новой катушки филамента</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST">
+                <input type="hidden" name="action_type" value="add_spool">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">Тип полимера (Материал)</label>
+                        <select name="material" class="form-select" required>
+                            <option value="PLA">PLA (Полилактид)</option>
+                            <option value="PETG">PETG (Полиэтилентерефталатгликоль)</option>
+                            <option value="ABS">ABS (Акрилонитрилбутадиенстирол)</option>
+                            <option value="PLA-CF">PLA-CF (Углешаполненный)</option>
+                            <option value="TPU 95A">TPU 95A (Эластомер)</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">Цвет нити</label>
+                        <input type="text" name="color" class="form-control" placeholder="Например: Изумрудный металлик" required>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label small text-muted">Масса нетто (г)</label>
+                            <input type="number" name="weight" class="form-control" value="1000" min="100" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small text-muted">Стоимость катушки (₽)</label>
+                            <input type="number" step="0.01" name="cost" class="form-control" value="1950.00" required>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary border-opacity-25">
+                    <button type="submit" class="btn btn-primary fw-semibold">Поставить на учёт</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно добавления 3D-модели -->
+<div class="modal fade" id="newProductModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header border-secondary border-opacity-25">
+                <h5 class="modal-title fw-bold">Регистрация новой 3D-модели в каталоге</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST">
+                <input type="hidden" name="action_type" value="add_product">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">Артикул изделия (SKU)</label>
+                        <input type="text" name="sku" class="form-control" placeholder="BRK-204" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">Наименование детали</label>
+                        <input type="text" name="name" class="form-control" placeholder="Кронштейн крепления лидара" required>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label small text-muted">Рекомендуемый пластик</label>
+                            <input type="text" name="material" class="form-control" value="PETG" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small text-muted">Масса 1 детали по слайсеру (г)</label>
+                            <input type="number" step="0.1" name="weight_g" class="form-control" value="42.5" required>
+                        </div>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label small text-muted">Время печати 1 шт. (мин)</label>
+                            <input type="number" name="print_time_min" class="form-control" value="70" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small text-muted">Отпускная цена (₽)</label>
+                            <input type="number" step="0.01" name="price" class="form-control" value="650.00" required>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary border-opacity-25">
+                    <button type="submit" class="btn btn-primary fw-semibold">Сохранить в каталог</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

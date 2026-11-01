@@ -1,0 +1,141 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div>
+        <h3 class="fw-bold mb-0">Управление персоналом и ролями доступа</h3>
+        <p class="text-muted small mb-0">Администрирование учётных записей сотрудников мастерской, контроль активности и смена паролей</p>
+    </div>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createUserModal">
+        <i class="bi bi-person-plus-fill me-1"></i> Добавить сотрудника
+    </button>
+</div>
+
+<div class="glass-card">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>ФИО сотрудника</th>
+                    <th>Логин</th>
+                    <th>Должность / Роль</th>
+                    <th>Операций в журнале</th>
+                    <th>Дата регистрации</th>
+                    <th>Статус доступа</th>
+                    <th>Управление</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in users %}
+                <tr>
+                    <td class="text-muted fw-semibold">#{{ u.id }}</td>
+                    <td class="fw-bold text-white">{{ u.full_name }}</td>
+                    <td><span class="badge bg-dark border border-secondary text-info">{{ u.username }}</span></td>
+                    <td>
+                        <span class="badge {% if u.role == 'admin' %}bg-primary{% elif u.role == 'manager' %}bg-info text-dark{% else %}bg-secondary{% endif %}">
+                            {{ u.role | role_ru }}
+                        </span>
+                    </td>
+                    <td class="fw-semibold">{{ u.actions_count }} опер.</td>
+                    <td class="small text-muted">{{ u.created_at | datetime_ru }}</td>
+                    <td>
+                        {% if u.is_active %}
+                        <span class="status-pill pill-ready"><span class="status-dot"></span> Активен</span>
+                        {% else %}
+                        <span class="status-pill pill-maintenance"><span class="status-dot"></span> Заблокирован</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="d-flex flex-wrap gap-2">
+                            <button class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#resetPwdModal{{ u.id }}" title="Сбросить пароль">
+                                <i class="bi bi-key-fill me-1"></i>Пароль
+                            </button>
+
+                            {% if u.id != session.user_id %}
+                            <form method="POST" action="/users/{{ u.id }}/toggle" class="d-inline">
+                                {% if u.is_active %}
+                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Заблокировать учётную запись">
+                                    <i class="bi bi-lock-fill me-1"></i>Блок
+                                </button>
+                                {% else %}
+                                <button type="submit" class="btn btn-sm btn-outline-success" title="Разблокировать учётную запись">
+                                    <i class="bi bi-unlock-fill me-1"></i>Разблок
+                                </button>
+                                {% endif %}
+                            </form>
+                            {% else %}
+                            <span class="badge bg-dark border border-secondary text-muted align-self-center">Текущий сеанс</span>
+                            {% endif %}
+                        </div>
+
+                        <!-- Модальное окно смены пароля -->
+                        <div class="modal fade" id="resetPwdModal{{ u.id }}" tabindex="-1">
+                            <div class="modal-dialog">
+                                <div class="modal-content">
+                                    <div class="modal-header border-secondary border-opacity-25">
+                                        <h6 class="modal-title fw-bold"><i class="bi bi-key text-warning me-2"></i>Смена пароля: {{ u.full_name }}</h6>
+                                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <form method="POST" action="/users/{{ u.id }}/reset_password">
+                                        <div class="modal-body">
+                                            <label class="form-label small text-muted">Новый пароль для входа (логин: <strong class="text-white">{{ u.username }}</strong>)</label>
+                                            <input type="text" name="new_password" class="form-control" value="12345" required>
+                                        </div>
+                                        <div class="modal-footer border-secondary border-opacity-25">
+                                            <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+                                            <button type="submit" class="btn btn-sm btn-warning text-dark fw-semibold">Сохранить новый пароль</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Модальное окно создания нового сотрудника -->
+<div class="modal fade" id="createUserModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header border-secondary border-opacity-25">
+                <h5 class="modal-title fw-bold"><i class="bi bi-person-plus-fill text-primary me-2"></i>Регистрация сотрудника цеха</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="/users/create">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">ФИО сотрудника</label>
+                        <input type="text" name="full_name" class="form-control" placeholder="Соколов Дмитрий Игоревич" required>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label small text-muted">Логин для входа</label>
+                            <input type="text" name="username" class="form-control" placeholder="sokolov" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small text-muted">Стартовый пароль</label>
+                            <input type="text" name="password" class="form-control" value="12345" required>
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small text-muted">Назначенная роль в системе</label>
+                        <select name="role" class="form-select" required>
+                            <option value="operator">Оператор ЧПУ / 3D (Очередь печати, упаковка, ТО)</option>
+                            <option value="manager">Менеджер заказов (Клиенты, заказы, склад, аналитика)</option>
+                            <option value="admin">Администратор (Полный доступ и управление персоналом)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary border-opacity-25">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-primary fw-semibold">Создать учётную запись</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
