@@ -13,28 +13,28 @@
 <!-- Сводные финансовые и производственные показатели -->
 <div class="row g-3 mb-4">
     <div class="col-sm-6 col-xl-3">
-        <div class="glass-card p-3 h-100">
-            <div class="text-muted small">Выручка (выданные заказы)</div>
-            <div class="fs-3 fw-bold text-success mt-1">{{ revenue_shipped | rub }}</div>
-            <div class="small text-muted">Портфель в работе: <strong class="text-white">{{ revenue_pipeline | rub }}</strong></div>
+        <div class="glass-card tilt-card p-3 h-100">
+            <div class="text-muted small">Совокупная выручка студии</div>
+            <div class="fs-3 fw-bold text-success mt-1">{{ total_revenue | rub }}</div>
+            <div class="small text-muted">В кассе (выдано): <strong class="text-white">{{ revenue_shipped | rub }}</strong> <span class="mx-1">•</span> В работе: {{ revenue_pipeline | rub }}</div>
         </div>
     </div>
     <div class="col-sm-6 col-xl-3">
-        <div class="glass-card p-3 h-100">
+        <div class="glass-card tilt-card p-3 h-100">
             <div class="text-muted small">Чистая прибыль и рентабельность</div>
-            <div class="fs-3 fw-bold text-primary mt-1">{{ total_net_profit | rub }}</div>
-            <div class="small text-muted">Средняя маржа: <strong class="text-success">{{ avg_margin_pct }}%</strong> (Себест.: {{ total_planned_cost | rub }})</div>
+            <div class="fs-3 fw-bold text-primary mt-1">{{ (total_net_profit if total_net_profit is defined else net_profit) | rub }}</div>
+            <div class="small text-muted">Средняя маржа: <strong class="text-success">{{ (avg_margin_pct if avg_margin_pct is defined else avg_margin) }}%</strong> <span class="mx-1">•</span> Себест.: {{ (total_planned_cost if total_planned_cost is defined else total_cost) | rub }}</div>
         </div>
     </div>
     <div class="col-sm-6 col-xl-3">
-        <div class="glass-card p-3 h-100">
+        <div class="glass-card tilt-card p-3 h-100">
             <div class="text-muted small">Переработано полимеров</div>
             <div class="fs-3 fw-bold text-info mt-1">{{ weight_kg }} кг</div>
             <div class="small text-muted">По завершённым партиям</div>
         </div>
     </div>
     <div class="col-sm-6 col-xl-3">
-        <div class="glass-card p-3 h-100">
+        <div class="glass-card tilt-card p-3 h-100">
             <div class="text-muted small">Доля технологического брака</div>
             <div class="fs-3 fw-bold {% if scrap_rate > 15 %}text-danger{% else %}text-warning{% endif %} mt-1">{{ scrap_rate }}%</div>
             <div class="small text-muted">Норматив заложенного резерва: 5%</div>
@@ -45,13 +45,13 @@
 <!-- Графики Chart.js -->
 <div class="row g-4 mb-4">
     <div class="col-lg-8">
-        <div class="glass-card p-4 h-100">
+        <div class="glass-card tilt-card p-4 h-100">
             <h6 class="fw-bold mb-3"><i class="bi bi-graph-up-arrow text-primary me-2"></i>Динамика выпуска готовых изделий по дням недели (шт.)</h6>
             <canvas id="productionChart" style="max-height: 250px;"></canvas>
         </div>
     </div>
     <div class="col-lg-4">
-        <div class="glass-card p-4 h-100">
+        <div class="glass-card tilt-card p-4 h-100">
             <h6 class="fw-bold mb-3"><i class="bi bi-pie-chart-fill text-info me-2"></i>Распределение заказов по статусам</h6>
             <canvas id="statusPieChart" style="max-height: 250px;"></canvas>
         </div>
@@ -99,20 +99,32 @@ document.addEventListener('DOMContentLoaded', () => {
             datasets: [{
                 label: 'Выпущено деталей (шт.)',
                 data: [14, 22, 19, 28, 34, 26, 31],
-                borderColor: '#3b82f6',
-                backgroundColor: 'rgba(59, 130, 246, 0.14)',
+                borderColor: '#be123c',
+                backgroundColor: 'rgba(190, 18, 60, 0.16)',
                 borderWidth: 2.5,
                 tension: 0.35,
                 fill: true,
-                pointBackgroundColor: '#60a5fa'
+                pointBackgroundColor: '#fb7185'
             }]
         },
         options: {
             responsive: true,
-            plugins: { legend: { labels: { color: '#cbd5e1' } } },
+            plugins: {
+                legend: {
+                    labels: {
+                        color: document.documentElement.getAttribute('data-bs-theme') === 'light' ? '#14121a' : '#f5f4f8'
+                    }
+                }
+            },
             scales: {
-                y: { grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#94a3b8' } },
-                x: { grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#94a3b8' } }
+                y: {
+                    grid: { color: document.documentElement.getAttribute('data-bs-theme') === 'light' ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.05)' },
+                    ticks: { color: document.documentElement.getAttribute('data-bs-theme') === 'light' ? '#534f5e' : '#9692a4' }
+                },
+                x: {
+                    grid: { color: document.documentElement.getAttribute('data-bs-theme') === 'light' ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.05)' },
+                    ticks: { color: document.documentElement.getAttribute('data-bs-theme') === 'light' ? '#534f5e' : '#9692a4' }
+                }
             }
         }
     });
@@ -124,15 +136,21 @@ document.addEventListener('DOMContentLoaded', () => {
             labels: {{ status_chart_labels | tojson }},
             datasets: [{
                 data: {{ status_chart_values | tojson }},
-                backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#64748b', '#ef4444'],
-                borderColor: '#111827',
+                backgroundColor: ['#be123c', '#10b981', '#f59e0b', '#64748b', '#ef4444'],
+                borderColor: document.documentElement.getAttribute('data-bs-theme') === 'light' ? '#ffffff' : '#16141d',
                 borderWidth: 2
             }]
         },
         options: {
             responsive: true,
             plugins: {
-                legend: { position: 'bottom', labels: { color: '#cbd5e1', padding: 12 } }
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        color: document.documentElement.getAttribute('data-bs-theme') === 'light' ? '#534f5e' : '#c4c1d0',
+                        padding: 12
+                    }
+                }
             }
         }
     });

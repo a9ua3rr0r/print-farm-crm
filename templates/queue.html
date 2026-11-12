@@ -164,24 +164,35 @@
                 <div class="modal-body">
                     <div class="mb-3">
                         <label class="form-label small text-muted">Позиция заказа, требующая печати</label>
-                        <select name="order_item_id" class="form-select" required>
+                        <select name="order_item_id" id="queue-item-select" class="form-select" required onchange="filterPrintersByMaterial()">
+                            <option value="" disabled selected>-- Выберите изделие для печати --</option>
                             {% for it in items %}
-                            <option value="{{ it.id }}">
-                                #ORD-{{ "%04d"|format(it.order_id) }} — {{ it.product_name }} ({{ it.material }}, осталось: {{ it.remaining_qty }} шт.)
+                            <option value="{{ it.id }}"
+                                    data-material="{{ it.material }}"
+                                    data-weight="{{ it.weight_g if it.weight_g is defined else 0 }}"
+                                    data-remaining="{{ it.remaining_qty }}"
+                                    data-name="{{ it.product_name }}">
+                                #ORD-{{ "%04d"|format(it.order_id) }} — {{ it.product_name }} [Полимер: {{ it.material }}] (осталось: {{ it.remaining_qty }} шт.)
                             </option>
                             {% endfor %}
                         </select>
                     </div>
                     <div class="mb-3">
                         <label class="form-label small text-muted">Целевой 3D-принтер</label>
-                        <select name="printer_id" class="form-select" required>
+                        <select name="printer_id" id="queue-printer-select" class="form-select" required>
+                            <option value="" disabled selected>-- Сначала выберите изделие выше --</option>
                             {% for p in printers %}
-                            <option value="{{ p.id }}">
-                                {{ p.name }} ({{ p.model }}) — {{ p.status | printer_status_ru }} [Сырьё: {{ p.spool_material or 'Нет' }}]
+                            <option value="{{ p.id }}"
+                                    data-material="{{ p.spool_material or '' }}"
+                                    data-color="{{ p.spool_color or '' }}"
+                                    data-weight="{{ p.spool_weight|int if p.spool_weight else 0 }}"
+                                    data-name="{{ p.name }}"
+                                    data-model="{{ p.model }}">
+                                {{ p.name }} ({{ p.model }}) — Заправлен: {{ p.spool_material or 'НЕТ КАТУШКИ' }} {% if p.spool_color %}({{ p.spool_color }}){% endif %} [Остаток: {{ p.spool_weight|int if p.spool_weight else 0 }} г]
                             </option>
                             {% endfor %}
                         </select>
-                        <div class="form-text text-muted small">Если принтер свободен, печать запустится сразу; если занят — встанет в очередь.</div>
+                        <div id="queue-material-hint" class="mt-2"></div>
                     </div>
                     <div class="mb-2">
                         <label class="form-label small text-muted">Количество изделий на столе (шт.)</label>
@@ -190,10 +201,81 @@
                 </div>
                 <div class="modal-footer border-secondary border-opacity-25">
                     <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
-                    <button type="submit" class="btn btn-primary fw-semibold">Отправить в производство</button>
+                    <button type="submit" id="queue-submit-btn" class="btn btn-primary fw-semibold">Отправить в производство</button>
                 </div>
             </form>
         </div>
     </div>
 </div>
+
+<script>
+function filterPrintersByMaterial() {
+    const itemSelect = document.getElementById('queue-item-select');
+    const printerSelect = document.getElementById('queue-printer-select');
+    const hintEl = document.getElementById('queue-material-hint');
+    const submitBtn = document.getElementById('queue-submit-btn');
+
+    if (!itemSelect || !printerSelect) return;
+
+    const selectedOption = itemSelect.options[itemSelect.selectedIndex];
+    if (!selectedOption || !selectedOption.dataset.material) {
+        return;
+    }
+
+    const reqMaterial = selectedOption.dataset.material.trim().toUpperCase();
+    const productName = selectedOption.dataset.name || 'изделие';
+    let matchCount = 0;
+    let firstMatchValue = null;
+
+    Array.from(printerSelect.options).forEach((opt, idx) => {
+        if (idx === 0) return;
+        const pMaterial = (opt.dataset.material || '').trim().toUpperCase();
+        const pWeight = parseInt(opt.dataset.weight || '0', 10);
+        const pName = opt.dataset.name || 'Станок';
+        const pModel = opt.dataset.model || '';
+        const pColor = opt.dataset.color || '';
+
+        if (!pMaterial) {
+            opt.disabled = true;
+            opt.textContent = `⚠️ ${pName} (${pModel}) — Нет катушки [Недоступен]`;
+        } else if (pMaterial === reqMaterial) {
+            opt.disabled = false;
+            opt.textContent = `✅ ${pName} (${pModel}) — ${opt.dataset.material} ${pColor ? '(' + pColor + ')' : ''} [Остаток: ${pWeight} г]`;
+            matchCount++;
+            if (!firstMatchValue) firstMatchValue = opt.value;
+        } else {
+            opt.disabled = true;
+            opt.textContent = `⛔ ${pName} (${pModel}) — ${opt.dataset.material} [Не подходит: требуется ${selectedOption.dataset.material}]`;
+        }
+    });
+
+    if (matchCount > 0) {
+        printerSelect.value = firstMatchValue;
+        printerSelect.disabled = false;
+        if (submitBtn) submitBtn.disabled = false;
+        hintEl.innerHTML = `
+            <div class="alert alert-success py-2 px-3 small mb-0 border border-success border-opacity-50">
+                <i class="bi bi-check-circle-fill text-success me-1"></i>
+                Для «<strong>${productName}</strong>» требуется полимер <strong>${selectedOption.dataset.material}</strong>.
+                Найдено совместимых свободных станков: <strong>${matchCount} шт.</strong>
+            </div>`;
+    } else {
+        printerSelect.value = "";
+        if (submitBtn) submitBtn.disabled = true;
+        hintEl.innerHTML = `
+            <div class="alert alert-danger py-2 px-3 small mb-0 border border-danger border-opacity-50">
+                <i class="bi bi-slash-circle-fill text-danger me-1"></i>
+                <strong>Технологическая блокировка:</strong> для «<strong>${productName}</strong>» требуется полимер <strong>${selectedOption.dataset.material}</strong>, но сейчас ни на одном свободном станке он не заправлен!<br>
+                <span class="text-white-50">Запуск на другом пластике запрещён регламентом студии. Перейдите в <a href="/printers" class="alert-link text-decoration-underline">«Парк 3D-принтеров»</a> и установите катушку ${selectedOption.dataset.material}.</span>
+            </div>`;
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const itemSelect = document.getElementById('queue-item-select');
+    if (itemSelect && itemSelect.value) {
+        filterPrintersByMaterial();
+    }
+});
+</script>
 {% endblock %}

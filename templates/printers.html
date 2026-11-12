@@ -34,7 +34,7 @@
             <span class="status-dot d-inline-block me-1" style="background:#10b981;"></span>Идёт печать <span class="badge bg-dark ms-1">{{ count_printing }}</span>
         </button>
         <button type="button" class="btn btn-sm btn-outline-secondary text-light" onclick="filterPrinters('idle', this)">
-            <span class="status-dot d-inline-block me-1" style="background:#3b82f6;"></span>Свободны <span class="badge bg-dark ms-1">{{ count_idle }}</span>
+            <span class="status-dot d-inline-block me-1" style="background:#f43f5e;"></span>Свободны <span class="badge bg-dark ms-1">{{ count_idle }}</span>
         </button>
         <button type="button" class="btn btn-sm btn-outline-secondary text-light" onclick="filterPrinters('maintenance', this)">
             <span class="status-dot d-inline-block me-1" style="background:#ef4444;"></span>На обслуживании <span class="badge bg-dark ms-1">{{ count_maint }}</span>
@@ -47,7 +47,7 @@
             <i class="bi bi-grid-fill me-1"></i> Карточки
         </button>
         <button type="button" id="btn-view-rack" class="btn btn-sm btn-outline-secondary text-light" onclick="switchPrintersView('rack')">
-            <i class="bi bi-hdd-rack-fill me-1"></i> Стеллаж фермы
+            <i class="bi bi-hdd-rack-fill me-1"></i> Стеллаж студии
         </button>
     </div>
 </div>
@@ -56,14 +56,14 @@
 <div id="printers-filter-empty" class="glass-card p-5 text-center mb-4 d-none">
     <i class="bi bi-cpu fs-1 text-muted mb-2 d-block"></i>
     <h6 class="fw-bold text-white">Нет 3D-принтеров с выбранным статусом</h6>
-    <p class="small text-muted mb-0">Переключите фильтр выше, чтобы отобразить все станки цеха.</p>
+    <p class="small text-muted mb-0">Переключите фильтр выше, чтобы отобразить все станки студии.</p>
 </div>
 
 <!-- РЕЖИМ 1: КАРТОЧКИ 3D-ПРИНТЕРОВ -->
 <div id="view-cards" class="row g-4 mb-4">
     {% for p in printers %}
     <div class="col-md-6 col-xl-4 printer-filter-item" data-status="{{ p.status }}">
-        <div class="glass-card p-3 h-100 d-flex flex-column justify-content-between">
+        <div class="glass-card tilt-card p-3 h-100 d-flex flex-column justify-content-between">
             <div>
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <h5 class="fw-bold text-white mb-0">{{ p.name }}</h5>
@@ -138,11 +138,11 @@
     {% endfor %}
 </div>
 
-<!-- РЕЖИМ 2: СТЕЛЛАЖ ФЕРМЫ (RACK VIEW) -->
+<!-- РЕЖИМ 2: СТЕЛЛАЖ СТУДИИ (RACK VIEW) -->
 <div id="view-rack" class="glass-card p-4 mb-4 d-none">
     <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom border-secondary border-opacity-25">
         <div>
-            <h6 class="fw-bold mb-0 text-white"><i class="bi bi-hdd-rack-fill text-primary me-2"></i>Производственная стойка А1 (Многоярусный стеллаж 3D-фермы)</h6>
+            <h6 class="fw-bold mb-0 text-white"><i class="bi bi-hdd-rack-fill text-primary me-2"></i>Производственная стойка А1 (Многоярусный стеллаж 3D-студии)</h6>
             <span class="small text-muted">Визуализация физического расположения станков по слотам</span>
         </div>
         <span class="badge bg-dark border border-secondary text-info">Питание линии: 220В / Стабилизировано</span>
@@ -152,7 +152,7 @@
         {% for p in printers %}
         <div class="col-md-6 col-xl-4 printer-filter-item" data-status="{{ p.status }}">
             <div class="p-3 rounded-3 bg-dark border border-secondary border-opacity-50 h-100 d-flex flex-column justify-content-between"
-                 style="border-top: 3px solid {% if p.status == 'printing' %}#10b981{% elif p.status == 'idle' %}#3b82f6{% else %}#ef4444{% endif %} !important;">
+                 style="border-top: 3px solid {% if p.status == 'printing' %}#10b981{% elif p.status == 'idle' %}#f43f5e{% else %}#ef4444{% endif %} !important;">
                 <div>
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <span class="badge bg-black border border-secondary text-muted">СЛОТ А1-{{ "%02d"|format(loop.index) }}</span>
@@ -310,7 +310,7 @@
                 <input type="hidden" name="action_type" value="add_printer">
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label class="form-label small text-muted">Инвентарное имя в цехе</label>
+                        <label class="form-label small text-muted">Инвентарное имя в студии</label>
                         <input type="text" name="name" class="form-control" placeholder="Bambu-06" required>
                     </div>
                     <div class="mb-3">

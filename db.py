@@ -60,12 +60,12 @@ def get_db_connection():
 def resolve_spool_hex(color_name):
     """Преобразует русское название цвета катушки в HEX-код для 3D-рендера."""
     if not color_name:
-        return '#3b82f6'
+        return '#be123c'
     c = color_name.lower()
+    if 'красн' in c or 'рубин' in c or 'кармин' in c or 'бордо' in c or 'гранат' in c:
+        return '#be123c'
     if 'карбон' in c or 'чёрн' in c or 'черн' in c:
-        return '#334155'
-    if 'син' in c or 'кобальт' in c:
-        return '#2563eb'
+        return '#262f3e'
     if 'оранж' in c or 'неон' in c:
         return '#f97316'
     if 'сер' in c or 'графит' in c or 'сталь' in c:
@@ -74,9 +74,11 @@ def resolve_spool_hex(color_name):
         return '#f8fafc'
     if 'зел' in c or 'изумруд' in c:
         return '#10b981'
-    if 'красн' in c or 'рубин' in c:
-        return '#ef4444'
-    return '#3b82f6'
+    if 'син' in c or 'кобальт' in c or 'сапфир' in c:
+        return '#2563eb'
+    if 'прозрач' in c or 'термо' in c or 'натурал' in c:
+        return '#94a3b8'
+    return '#be123c'
 
 def ensure_database_exists():
     """Автоматически создаёт базу данных printfarm_db, если она ещё не создана."""

@@ -1,8 +1,110 @@
 let telemetryViewer = null;
+let overviewViewer = null;
 let currentTelemetryPrinterId = null;
 let telemetryChangedFlag = false;
 
-// Автоподгрузка Three.js, если скрипт не был подключен в base.html
+// ============================================================================
+// 1. УПРАВЛЕНИЕ ТЕМОЙ ОФОРМЛЕНИЯ (DARK SLATE / CLEAN LIGHT)
+// ============================================================================
+function getSavedTheme() {
+    return localStorage.getItem('printfarm_theme') || 'dark';
+}
+
+function applyTheme(theme) {
+    document.documentElement.setAttribute('data-bs-theme', theme);
+    localStorage.setItem('printfarm_theme', theme);
+
+    const iconEl = document.getElementById('theme-toggle-icon');
+    const textEl = document.getElementById('theme-toggle-text');
+    if (iconEl) {
+        iconEl.className = (theme === 'light')
+            ? 'bi bi-moon-stars-fill text-primary'
+            : 'bi bi-sun-fill text-warning';
+    }
+    if (textEl) {
+        textEl.textContent = (theme === 'light') ? 'Тёмная тема' : 'Светлая тема';
+    }
+
+    if (overviewViewer) overviewViewer.applyThemeColors(theme);
+    if (telemetryViewer) telemetryViewer.applyThemeColors(theme);
+}
+
+function toggleAppTheme() {
+    const current = document.documentElement.getAttribute('data-bs-theme') || 'dark';
+    const next = (current === 'dark') ? 'light' : 'dark';
+    applyTheme(next);
+}
+
+// ============================================================================
+// 2. АВТОПОДСТАНОВКА ЗАКРЕПЛЁННЫХ ЦЕН ИЗ GOOGLE ТАБЛИЦЫ НА СКЛАДЕ
+// ============================================================================
+function onMarketplaceCatalogSelect(selectEl) {
+    const opt = selectEl.options[selectEl.selectedIndex];
+    if (!opt) return;
+
+    const materialInput = document.getElementById('spool-material-input');
+    const colorInput = document.getElementById('spool-color-input');
+    const weightInput = document.getElementById('spool-weight-input');
+    const priceDisplay = document.getElementById('spool-price-display');
+    const skuDisplay = document.getElementById('spool-sku-display');
+
+    if (materialInput && opt.dataset.material) materialInput.value = opt.dataset.material;
+    if (colorInput && opt.dataset.color) colorInput.value = opt.dataset.color;
+    if (weightInput && opt.dataset.weight) weightInput.value = opt.dataset.weight;
+    if (priceDisplay && opt.dataset.price) priceDisplay.value = `${opt.dataset.price} ₽ (из таблицы)`;
+    if (skuDisplay && opt.dataset.sku) skuDisplay.value = opt.dataset.sku;
+}
+
+// ============================================================================
+// 3. ЖИВОЙ КАЛЬКУЛЯТОР СЕБЕСТОИМОСТИ И МАРЖИ ЗАКАЗА
+// ============================================================================
+function calculateOrderEconomics() {
+    const rows = document.querySelectorAll('#items-container .item-row');
+    if (!rows.length) return;
+
+    let totalCost = 0;
+    let totalRevenue = 0;
+
+    rows.forEach(row => {
+        const sel = row.querySelector('select');
+        const qtyInput = row.querySelector('input[type="number"]');
+        if (!sel || !qtyInput) return;
+
+        const opt = sel.options[sel.selectedIndex];
+        if (!opt) return;
+
+        const price = parseFloat(opt.dataset.price || '0');
+        const weightG = parseFloat(opt.dataset.weight || '50');
+        const timeMin = parseFloat(opt.dataset.time || '60');
+        const qty = Math.max(1, parseInt(qtyInput.value || '1'));
+
+        const hours = timeMin / 60.0;
+        const filamentCost = weightG * 2.15 * qty;
+        const electricityCost = hours * 0.35 * 7.50 * qty;
+        const amortizationCost = hours * 35.0 * qty;
+        const scrapReserve = filamentCost * 0.05;
+
+        totalCost += (filamentCost + electricityCost + amortizationCost + scrapReserve);
+        totalRevenue += (price * qty);
+    });
+
+    const profit = totalRevenue - totalCost;
+    const margin = totalRevenue > 0 ? ((profit / totalRevenue) * 100.0) : 0;
+
+    const costEl = document.getElementById('calc-order-cost');
+    const revEl = document.getElementById('calc-order-revenue');
+    const profEl = document.getElementById('calc-order-profit');
+    const margEl = document.getElementById('calc-order-margin');
+
+    if (costEl) costEl.textContent = `${totalCost.toFixed(0)} ₽`;
+    if (revEl) revEl.textContent = `${totalRevenue.toFixed(0)} ₽`;
+    if (profEl) profEl.textContent = `${profit.toFixed(0)} ₽`;
+    if (margEl) margEl.textContent = `${margin.toFixed(1)}%`;
+}
+
+// ============================================================================
+// 4. ИНИЦИАЛИЗАЦИЯ СТРАНИЦЫ И ФИЛЬТРОВ
+// ============================================================================
 function ensureThreeJsLoaded() {
     return new Promise((resolve) => {
         if (typeof THREE !== 'undefined') {
@@ -16,143 +118,16 @@ function ensureThreeJsLoaded() {
     });
 }
 
-// Автоматическое создание модального окна 3D-телеметрии, если оно отсутствует в шаблоне
-function ensureTelemetryModalExists() {
-    let modalEl = document.getElementById('printerTelemetryModal');
-    if (modalEl && document.getElementById('telemetry3d-canvas-container')) {
-        return modalEl;
+document.addEventListener('DOMContentLoaded', async () => {
+    applyTheme(getSavedTheme());
+
+    const catalogSelect = document.getElementById('spool-catalog-select');
+    if (catalogSelect) onMarketplaceCatalogSelect(catalogSelect);
+
+    if (document.getElementById('calc-order-cost')) {
+        calculateOrderEconomics();
     }
 
-    const wrapper = document.createElement('div');
-    wrapper.innerHTML = `
-    <div class="modal fade" id="printerTelemetryModal" tabindex="-1">
-        <div class="modal-dialog modal-xl modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header border-secondary border-opacity-25">
-                    <div class="d-flex align-items-center gap-3">
-                        <div class="p-2 rounded-3 bg-primary bg-opacity-25 text-primary">
-                            <i class="bi bi-badge-3d-fill fs-4"></i>
-                        </div>
-                        <div>
-                            <div class="small text-muted">ЦИФРОВОЙ ДВОЙНИК И ПОСЛОЙНЫЙ КОНТРОЛЬ FDM</div>
-                            <h5 class="modal-title fw-bold mb-0 text-white" id="tel-printer-title">Загрузка станка...</h5>
-                        </div>
-                    </div>
-                    <div class="d-flex align-items-center gap-3">
-                        <span id="tel-printer-status" class="status-pill pill-idle">Свободен</span>
-                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                    </div>
-                </div>
-                <div class="modal-body p-4">
-                    <div class="row g-4">
-                        <div class="col-lg-7">
-                            <div id="telemetry3d-canvas-container" style="width: 100%; height: 410px; position: relative; border-radius: 0.85rem; overflow: hidden; background: radial-gradient(circle at center, #17253f 0%, #070a12 100%); border: 1px solid rgba(59, 130, 246, 0.35); cursor: grab;">
-                                <div class="canvas-overlay-badge">
-                                    <i class="bi bi-camera-video-fill text-primary me-1"></i> Камера 3D-среза (вращайте мышью)
-                                </div>
-                                <div class="canvas-overlay-layer" id="tel-layer-badge">
-                                    <i class="bi bi-layers-fill me-1"></i> Слой: 0 из 0
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-lg-5 d-flex flex-column justify-content-between">
-                            <div>
-                                <div class="p-3 rounded-3 bg-dark border border-secondary border-opacity-25 mb-3">
-                                    <div class="d-flex justify-content-between align-items-center mb-1">
-                                        <span class="badge bg-primary bg-opacity-25 text-primary" id="tel-part-sku">SKU</span>
-                                        <span class="small text-muted">Осталось: <strong class="text-white" id="tel-remaining">—</strong></span>
-                                    </div>
-                                    <h6 class="fw-bold text-white mb-1" id="tel-part-name">—</h6>
-                                    <div class="small text-muted mb-3" id="tel-order-info">—</div>
-
-                                    <div class="d-flex justify-content-between small mb-1">
-                                        <span class="text-muted">Готовность по слоям:</span>
-                                        <span class="fw-bold text-primary" id="tel-progress-pct">0%</span>
-                                    </div>
-                                    <div class="progress" style="height: 10px;">
-                                        <div id="tel-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-primary" style="width: 0%"></div>
-                                    </div>
-                                </div>
-
-                                <div class="row g-2 mb-3">
-                                    <div class="col-6">
-                                        <div class="telemetry-sensor-box">
-                                            <div class="small text-muted"><i class="bi bi-thermometer-high text-danger me-1"></i>Экструдер (Сопло)</div>
-                                            <div class="fs-5 fw-bold text-white" id="tel-nozzle-temp">25 °C</div>
-                                            <div class="text-muted" style="font-size: 0.72rem;" id="tel-nozzle-target">Цель: 0 °C</div>
-                                        </div>
-                                    </div>
-                                    <div class="col-6">
-                                        <div class="telemetry-sensor-box">
-                                            <div class="small text-muted"><i class="bi bi-grid-3x3 text-warning me-1"></i>Стол нагрева (PEI)</div>
-                                            <div class="fs-5 fw-bold text-white" id="tel-bed-temp">24 °C</div>
-                                            <div class="text-muted" style="font-size: 0.72rem;" id="tel-bed-target">Цель: 0 °C</div>
-                                        </div>
-                                    </div>
-                                    <div class="col-6">
-                                        <div class="telemetry-sensor-box">
-                                            <div class="small text-muted"><i class="bi bi-speedometer2 text-info me-1"></i>Скорость подачи</div>
-                                            <div class="fw-bold text-white" id="tel-speed">0 мм/с</div>
-                                        </div>
-                                    </div>
-                                    <div class="col-6">
-                                        <div class="telemetry-sensor-box">
-                                            <div class="small text-muted"><i class="bi bi-fan text-success me-1"></i>Обдув модели</div>
-                                            <div class="fw-bold text-white" id="tel-fan">0%</div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="telemetry-sensor-box mb-3 d-flex justify-content-between align-items-center">
-                                    <div class="d-flex align-items-center gap-2">
-                                        <span id="tel-spool-dot" class="spool-color-dot"></span>
-                                        <div>
-                                            <div class="small text-muted" style="font-size: 0.72rem;">АКТИВНАЯ КАТУШКА ФИЛАМЕНТА</div>
-                                            <div class="fw-bold text-white small" id="tel-spool-name">—</div>
-                                        </div>
-                                    </div>
-                                    <span class="badge bg-dark border border-secondary text-info" id="tel-spool-weight">0 г</span>
-                                </div>
-                            </div>
-
-                            <div class="d-flex gap-2 pt-2 border-top border-secondary border-opacity-25">
-                                <button type="button" id="btn-modal-step" onclick="stepPrinterInModal()" class="btn btn-warning fw-semibold text-dark flex-grow-1">
-                                    <i class="bi bi-fast-forward-fill me-1"></i> Напечатать +20% слоёв
-                                </button>
-                                <form id="tel-fail-form" method="POST" action="">
-                                    <input type="hidden" name="reason" value="Остановка оператором через 3D-телеметрию (дефект слоя)">
-                                    <button type="submit" class="btn btn-outline-danger">
-                                        <i class="bi bi-exclamation-octagon me-1"></i> Брак
-                                    </button>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>`;
-
-    document.body.appendChild(wrapper.firstElementChild);
-    modalEl = document.getElementById('printerTelemetryModal');
-
-    modalEl.addEventListener('shown.bs.modal', () => {
-        if (telemetryViewer) {
-            telemetryViewer.resize();
-        }
-    });
-
-    modalEl.addEventListener('hidden.bs.modal', () => {
-        if (telemetryChangedFlag) {
-            window.location.reload();
-        }
-    });
-
-    return modalEl;
-}
-
-document.addEventListener('DOMContentLoaded', async () => {
-    // 1. Кнопка ручного шага симулятора в сайдбаре
     const simBtn = document.getElementById('btn-sim-tick');
     if (simBtn) {
         simBtn.addEventListener('click', async () => {
@@ -175,7 +150,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // 2. Тумблер автоматической фоновой печати
     const autoSwitch = document.getElementById('switch-sim-auto');
     if (autoSwitch) {
         autoSwitch.addEventListener('change', async () => {
@@ -195,29 +169,121 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // 3. Гарантируем наличие Three.js и модального окна телеметрии
     await ensureThreeJsLoaded();
-    const telModalEl = ensureTelemetryModalExists();
-    telModalEl.addEventListener('shown.bs.modal', () => {
-        if (telemetryViewer) telemetryViewer.resize();
-    });
 
-    // 4. Инициализация 3D-виджета ближайшей к завершению печати на Дашборде
+    const telModalEl = document.getElementById('printerTelemetryModal');
+    if (telModalEl) {
+        telModalEl.addEventListener('shown.bs.modal', () => {
+            if (telemetryViewer) telemetryViewer.resize();
+        });
+        telModalEl.addEventListener('hidden.bs.modal', () => {
+            if (telemetryChangedFlag) window.location.reload();
+        });
+    }
+
     const overviewContainer = document.getElementById('farm3d-canvas-container');
     if (overviewContainer && typeof THREE !== 'undefined') {
         initOverviewPrintBed3D(overviewContainer);
     }
 
-    // 5. Восстановление выбранного режима просмотра (Карточки / Стеллаж)
     const savedView = localStorage.getItem('printfarm_printers_view') || 'cards';
     if (document.getElementById('view-cards') && document.getElementById('view-rack')) {
         switchPrintersView(savedView);
     }
+
+    // Инициализация деликатного 3D-наклона карточек с живым бликом
+    initInteractiveCardTilt('.tilt-card', 3.0);
 });
 
 // ============================================================================
-// ФИЛЬТРАЦИЯ ПРИНТЕРОВ ПО СТАТУСУ И ПЕРЕКЛЮЧЕНИЕ ВИДА (КАРТОЧКИ / СТЕЛЛАЖ)
+// ИНТЕРАКТИВНЫЙ 3D-НАКЛОН И ДИНАМИЧЕСКИЙ БЛИК КАРТОЧЕК (TILT & SHEEN)
+// Адаптирован под темную (Obsidian Ruby) и светлую (Alabaster Carmine) темы
 // ============================================================================
+function initInteractiveCardTilt(selector = '.tilt-card', maxAngle = 3.6) {
+    const cards = document.querySelectorAll(selector);
+    cards.forEach(card => {
+        let sheen = card.querySelector('.card-sheen-layer');
+        if (!sheen) {
+            sheen = document.createElement('div');
+            sheen.className = 'card-sheen-layer';
+            card.appendChild(sheen);
+        }
+
+        let isHovered = false;
+        let curX = 0, curY = 0;
+        let targetX = 0, targetY = 0;
+        let animId = null;
+
+        const applySheen = (px, py) => {
+            const isLight = document.documentElement.getAttribute('data-bs-theme') === 'light';
+            if (isLight) {
+                // На светлой теме: сочный, элегантный карминово-рубиновый блик с мягким контрастным ореолом Fresnel
+                sheen.style.background = `radial-gradient(circle 320px at ${px}px ${py}px, rgba(190, 18, 60, 0.25) 0%, rgba(225, 29, 72, 0.15) 28%, rgba(251, 113, 133, 0.07) 50%, rgba(20, 18, 26, 0.04) 72%, transparent 100%)`;
+            } else {
+                // На темной теме: кристаллический белый блик с рубиновым свечением
+                sheen.style.background = `radial-gradient(circle 320px at ${px}px ${py}px, rgba(255, 255, 255, 0.18) 0%, rgba(225, 29, 72, 0.12) 32%, rgba(225, 29, 72, 0.03) 58%, transparent 75%)`;
+            }
+        };
+
+        const update = () => {
+            curX += (targetX - curX) * 0.12;
+            curY += (targetY - curY) * 0.12;
+            card.style.transform = `perspective(1000px) rotateX(${curX.toFixed(2)}deg) rotateY(${curY.toFixed(2)}deg)`;
+
+            const isLight = document.documentElement.getAttribute('data-bs-theme') === 'light';
+            const shadowX = (-curY * 1.8).toFixed(1);
+            const shadowY = (curX * 1.8 + 8).toFixed(1);
+
+            if (isLight) {
+                card.style.boxShadow = `${shadowX}px ${shadowY}px 24px rgba(190, 18, 60, 0.18), 0 3px 8px rgba(20, 18, 26, 0.08)`;
+                card.style.borderColor = '#be123c';
+            } else {
+                card.style.boxShadow = `${shadowX}px ${shadowY}px 30px rgba(0, 0, 0, 0.65), 0 0 22px rgba(225, 29, 72, 0.22)`;
+                card.style.borderColor = 'rgba(225, 29, 72, 0.55)';
+            }
+
+            if (isHovered || Math.abs(curX) > 0.05 || Math.abs(curY) > 0.05) {
+                animId = requestAnimationFrame(update);
+            } else {
+                card.style.transform = '';
+                card.style.boxShadow = '';
+                card.style.borderColor = '';
+                animId = null;
+            }
+        };
+
+        card.addEventListener('mouseenter', (e) => {
+            isHovered = true;
+            const rect = card.getBoundingClientRect();
+            const px = e.clientX - rect.left;
+            const py = e.clientY - rect.top;
+            applySheen(px, py);
+            sheen.style.opacity = '1';
+            if (!animId) animId = requestAnimationFrame(update);
+        });
+
+        card.addEventListener('mousemove', (e) => {
+            const rect = card.getBoundingClientRect();
+            const x = (e.clientX - rect.left) / rect.width - 0.5;
+            const y = (e.clientY - rect.top) / rect.height - 0.5;
+            targetX = -y * maxAngle * 2;
+            targetY = x * maxAngle * 2;
+
+            const px = e.clientX - rect.left;
+            const py = e.clientY - rect.top;
+            applySheen(px, py);
+            sheen.style.opacity = '1';
+        });
+
+        card.addEventListener('mouseleave', () => {
+            isHovered = false;
+            targetX = 0;
+            targetY = 0;
+            sheen.style.opacity = '0';
+        });
+    });
+}
+
 function filterPrinters(status, btn) {
     if (btn) {
         const group = btn.closest('.printer-filter-group');
@@ -233,7 +299,6 @@ function filterPrinters(status, btn) {
 
     const items = document.querySelectorAll('.printer-filter-item');
     let visibleCount = 0;
-
     items.forEach(item => {
         const itemStatus = item.getAttribute('data-status');
         if (status === 'all' || itemStatus === status) {
@@ -276,7 +341,6 @@ function switchPrintersView(mode) {
     }
 }
 
-// Управление строками позиций в модальном окне создания заказа
 function addOrderItemRow() {
     const container = document.getElementById('items-container');
     if (!container) return;
@@ -287,14 +351,14 @@ function addOrderItemRow() {
     clone.querySelector('select').selectedIndex = 0;
     clone.querySelector('input[type="number"]').value = 1;
     container.appendChild(clone);
-    if (typeof calculateOrderEconomics === 'function') calculateOrderEconomics();
+    calculateOrderEconomics();
 }
 
 function removeOrderItemRow(btn) {
     const rows = document.querySelectorAll('#items-container .item-row');
     if (rows.length > 1) {
         btn.closest('.item-row').remove();
-        if (typeof calculateOrderEconomics === 'function') calculateOrderEconomics();
+        calculateOrderEconomics();
     }
 }
 
@@ -308,21 +372,19 @@ function copyTrackLink(url, btn) {
 }
 
 // ============================================================================
-// ПРОЦЕДУРНАЯ МИКРОТЕКСТУРА СЛОЁВ FDM-ПЕЧАТИ
+// 5. THREE.JS: ПРОЦЕДУРНЫЕ 3D-ДЕТАЛИ + РЕАЛИСТИЧНЫЙ ХОТЭНД С КУЛЕРОМ И ШЛЕЙФОМ
 // ============================================================================
 function createFdmLayerBumpTexture() {
     const canvas = document.createElement('canvas');
     canvas.width = 64;
     canvas.height = 256;
     const ctx = canvas.getContext('2d');
-
     for (let y = 0; y < 256; y += 4) {
-        ctx.fillStyle = '#ffffff';
+        ctx.fillStyle = '#f1f5f9';
         ctx.fillRect(0, y, 64, 2);
-        ctx.fillStyle = '#94a3b8';
+        ctx.fillStyle = '#cbd5e1';
         ctx.fillRect(0, y + 2, 64, 2);
     }
-
     const texture = new THREE.CanvasTexture(canvas);
     texture.wrapS = THREE.RepeatWrapping;
     texture.wrapT = THREE.RepeatWrapping;
@@ -330,9 +392,46 @@ function createFdmLayerBumpTexture() {
     return texture;
 }
 
-// ============================================================================
-// ИНЖЕНЕРНЫЕ 3D-МОДЕЛИ ДЕТАЛЕЙ + ТОЧНЫЙ КОНТУР ДЛЯ ДВИЖЕНИЯ ХОТЭНДА
-// ============================================================================
+// Реалистичная текстура верхнего слоя FDM-печати (45° штриховка растра)
+function createFdmTopInfillTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 128;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+
+    ctx.fillStyle = '#22161e';
+    ctx.fillRect(0, 0, 128, 128);
+
+    ctx.lineWidth = 2.2;
+    for (let d = -128; d < 256; d += 6) {
+        ctx.strokeStyle = (d % 12 === 0) ? '#451a27' : '#2d121c';
+        ctx.beginPath();
+        ctx.moveTo(d, 0);
+        ctx.lineTo(d + 128, 128);
+        ctx.stroke();
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(3, 3);
+    return texture;
+}
+
+// Калибровка цвета пластика: благородный сатиновый рубин/кармин вместо кислотного неона
+function calibratePartColor(hexColor) {
+    const col = new THREE.Color(hexColor || '#be123c');
+    const hsl = {};
+    col.getHSL(hsl);
+    // Для оттенков красного/рубинового ограничиваем перенасыщение и гасим блёклость
+    if (hsl.h < 0.08 || hsl.h > 0.90) {
+        hsl.s = Math.min(hsl.s, 0.72);
+        hsl.l = Math.max(0.28, Math.min(hsl.l, 0.38));
+        col.setHSL(hsl.h, hsl.s, hsl.l);
+    }
+    return col;
+}
+
 function createProceduralPartGeometry(sku) {
     const code = (sku || '').toUpperCase();
     let shape;
@@ -356,7 +455,6 @@ function createProceduralPartGeometry(sku) {
             slot.absellipse(xPos, 0, 0.15, 0.09, 0, Math.PI * 2, true);
             shape.holes.push(slot);
         });
-
     } else if (code.includes('GEAR')) {
         maxHeight = 1.15;
         const teeth = 16;
@@ -384,7 +482,6 @@ function createProceduralPartGeometry(sku) {
             h.absarc(Math.cos(a) * 0.54, Math.sin(a) * 0.54, 0.12, 0, Math.PI * 2, true);
             shape.holes.push(h);
         }
-
     } else if (code.includes('CASE-RPI')) {
         maxHeight = 1.25;
         const w = 1.85, h = 1.30, r = 0.15;
@@ -407,14 +504,12 @@ function createProceduralPartGeometry(sku) {
         inner.lineTo(-iw / 2, ih / 2);
         inner.closePath();
         shape.holes.push(inner);
-
     } else if (code.includes('DUCT')) {
         maxHeight = 1.20;
         shape = new THREE.Shape();
         shape.absarc(0, 0, 0.90, -Math.PI * 0.25, Math.PI * 1.25, false);
         shape.absarc(0, 0, 0.54, Math.PI * 1.25, -Math.PI * 0.25, true);
         shape.closePath();
-
     } else {
         maxHeight = 1.20;
         shape = new THREE.Shape();
@@ -444,22 +539,38 @@ function createProceduralPartGeometry(sku) {
     geo.translate(-centerX, -minY, -centerZ);
     geo.computeBoundingBox();
 
+    // 2D плоская крышка слоя среза (100% сплошное заполнение, исключает прозрачность внутри)
+    const capGeo = new THREE.ShapeGeometry(shape, 32);
+    capGeo.rotateX(-Math.PI / 2);
+    capGeo.translate(-centerX, 0, -centerZ);
+
     const rawPts = shape.getSpacedPoints(240);
     const contourPoints = rawPts.map(pt => ({
         x: pt.x - centerX,
         z: -pt.y - centerZ
     }));
 
+    const holeContours = [];
+    if (shape.holes && shape.holes.length > 0) {
+        shape.holes.forEach(hole => {
+            const hPts = hole.getPoints(36);
+            holeContours.push(hPts.map(pt => ({
+                x: pt.x - centerX,
+                z: -pt.y - centerZ
+            })));
+        });
+    }
+
     return {
         geo,
+        capGeo,
         maxHeight: geo.boundingBox.max.y,
-        contourPoints
+        contourPoints,
+        holeContours
     };
 }
 
-// ============================================================================
-// ДЕТАЛИЗИРОВАННЫЙ ИНЖЕНЕРНЫЙ 3D-ХОТЭНД (E3D V6 / BAMBU LAB STYLE)
-// ============================================================================
+// Полный детализированный 3D-хотэнд с кулером, проводами и трубкой подачи
 function createSleekHotend() {
     const group = new THREE.Group();
 
@@ -468,10 +579,10 @@ function createSleekHotend() {
     const titaniumMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.9, roughness: 0.2 });
     const alumMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.82, roughness: 0.24 });
     const darkAnodizedMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.5, roughness: 0.4 });
-    const siliconeSockMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, metalness: 0.1, roughness: 0.65 });
+    const siliconeSockMat = new THREE.MeshStandardMaterial({ color: 0x881337, metalness: 0.1, roughness: 0.65 });
     const redWireMat = new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.5 });
 
-    // 1. Латунное сопло + шестигранник
+    // 1. Латунное сопло + шестигранная гайка
     const tipGeo = new THREE.ConeGeometry(0.036, 0.065, 16);
     tipGeo.rotateX(Math.PI);
     const nozzleTip = new THREE.Mesh(tipGeo, brassMat);
@@ -482,10 +593,9 @@ function createSleekHotend() {
     hexNut.position.y = 0.085;
     group.add(hexNut);
 
-    // 2. Нагревательный блок + силиконовый носок + патрон нагревателя
+    // 2. Нагревательный блок + термоносок + медный картридж
     const blockGroup = new THREE.Group();
     blockGroup.position.set(0.025, 0.17, 0);
-
     blockGroup.add(new THREE.Mesh(new THREE.BoxGeometry(0.19, 0.11, 0.15), alumMat));
 
     const sock = new THREE.Mesh(new THREE.BoxGeometry(0.196, 0.085, 0.156), siliconeSockMat);
@@ -497,10 +607,9 @@ function createSleekHotend() {
     const cartridge = new THREE.Mesh(cartridgeGeo, copperMat);
     cartridge.position.set(0.045, 0.01, 0);
     blockGroup.add(cartridge);
-
     group.add(blockGroup);
 
-    // Силовые провода нагревателя
+    // Провода нагревателя в красной оплётке
     [-0.018, 0.018].forEach(zOffset => {
         const wireCurve = new THREE.CatmullRomCurve3([
             new THREE.Vector3(0.095, 0.18, 0.075 + zOffset),
@@ -512,12 +621,11 @@ function createSleekHotend() {
         group.add(new THREE.Mesh(wireGeo, redWireMat));
     });
 
-    // 3. Титановый термобарьер
+    // 3. Титановый термобарьер и радиатор с 7 рёбрами
     const throat = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.028, 0.08, 16), titaniumMat);
     throat.position.y = 0.265;
     group.add(throat);
 
-    // 4. Алюминиевый радиатор с 7 ребрами
     const sinkCore = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.30, 16), alumMat);
     sinkCore.position.y = 0.45;
     group.add(sinkCore);
@@ -529,7 +637,7 @@ function createSleekHotend() {
         group.add(fin);
     }
 
-    // 5. Кулер охлаждения радиатора с вращающейся крыльчаткой
+    // 4. Вентилятор радиатора с вращающейся крыльчаткой
     const fanMount = new THREE.Group();
     fanMount.position.set(-0.145, 0.45, 0);
     fanMount.add(new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.26, 0.26), darkAnodizedMat));
@@ -550,7 +658,7 @@ function createSleekHotend() {
     fanMount.add(fanRotor);
     group.add(fanMount);
 
-    // 6. Двухсторонние сопла обдува модели
+    // 5. Двухсторонние сопла обдува детали
     [-1, 1].forEach(side => {
         const ductGroup = new THREE.Group();
         const channel = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.24, 0.07), darkAnodizedMat);
@@ -562,11 +670,10 @@ function createSleekHotend() {
         nozzleBlower.rotation.x = side * 0.85;
         nozzleBlower.rotation.y = Math.PI / 4;
         ductGroup.add(nozzleBlower);
-
         group.add(ductGroup);
     });
 
-    // 7. Фитинг и PTFE-трубка с прутком пластика
+    // 6. Цанговый фитинг + PTFE-трубка + цветной пруток филамента
     const colletBody = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.04, 16), brassMat);
     colletBody.position.y = 0.62;
     group.add(colletBody);
@@ -576,18 +683,18 @@ function createSleekHotend() {
     ptfeTube.position.y = 0.86;
     group.add(ptfeTube);
 
-    const filamentRodMat = new THREE.MeshStandardMaterial({ color: 0x3b82f6, roughness: 0.3 });
+    const filamentRodMat = new THREE.MeshStandardMaterial({ color: 0xbe123c, roughness: 0.3 });
     const filamentRod = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.42, 12), filamentRodMat);
     filamentRod.position.y = 0.86;
     group.add(filamentRod);
 
-    // 8. Капля расплава на кончике сопла
-    const meltMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
+    // 7. Светящаяся капля расплава на кончике сопла
+    const meltMat = new THREE.MeshBasicMaterial({ color: 0xf43f5e });
     const meltDot = new THREE.Mesh(new THREE.SphereGeometry(0.024, 12, 12), meltMat);
     meltDot.position.y = 0.005;
     group.add(meltDot);
 
-    const tipLight = new THREE.PointLight(0x38bdf8, 1.1, 1.4);
+    const tipLight = new THREE.PointLight(0xfb7185, 1.1, 1.4);
     tipLight.position.y = 0.035;
     group.add(tipLight);
 
@@ -595,14 +702,11 @@ function createSleekHotend() {
     return { group, meltMat, filamentRodMat, tipLight, fanRotor };
 }
 
-// ============================================================================
-// КЛАСС 3D-ВИЗУАЛИЗАЦИИ: ПОСЛОЙНЫЙ СРЕЗ + ДВИЖЕНИЕ СОПЛА ПО КОНТУРУ ДЕТАЛИ
-// ============================================================================
 class PrinterSlice3DViewer {
     constructor(container) {
         this.container = container;
-        const width = Math.max(container.clientWidth, 420);
-        const height = Math.max(container.clientHeight, 300);
+        const width = Math.max(container.clientWidth, 400);
+        const height = Math.max(container.clientHeight, 240);
 
         this.scene = new THREE.Scene();
         this.camera = new THREE.PerspectiveCamera(38, width / height, 0.1, 1000);
@@ -617,15 +721,20 @@ class PrinterSlice3DViewer {
         container.querySelectorAll('canvas').forEach(c => c.remove());
         container.appendChild(this.renderer.domElement);
 
-        this.scene.add(new THREE.AmbientLight(0xffffff, 0.95));
+        // Сбалансированное студийное освещение: глубина теней без выбивания цветов
+        this.scene.add(new THREE.AmbientLight(0xffffff, 0.55));
 
-        const keyLight = new THREE.DirectionalLight(0xe0f2fe, 1.6);
+        const keyLight = new THREE.DirectionalLight(0xfff7ed, 0.95);
         keyLight.position.set(5, 9, 6);
         this.scene.add(keyLight);
 
-        const fillLight = new THREE.DirectionalLight(0x3b82f6, 0.85);
+        const fillLight = new THREE.DirectionalLight(0xe2e8f0, 0.45);
         fillLight.position.set(-5, 5, -4);
         this.scene.add(fillLight);
+
+        const rimLight = new THREE.DirectionalLight(0xffffff, 0.35);
+        rimLight.position.set(0, 4, -6);
+        this.scene.add(rimLight);
 
         this.bedGroup = new THREE.Group();
         this.scene.add(this.bedGroup);
@@ -636,10 +745,10 @@ class PrinterSlice3DViewer {
         this.layerBandThickness = 0.038;
 
         this.printedClipPlane = new THREE.Plane(new THREE.Vector3(0, -1, 0), this.currentCutHeight);
-        this.layerBottomPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -(this.currentCutHeight - this.layerBandThickness));
         this.ghostClipPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -this.currentCutHeight);
 
         this.layerBumpTex = createFdmLayerBumpTexture();
+        this.topInfillTex = createFdmTopInfillTexture();
 
         this.partGroup = new THREE.Group();
         this.bedGroup.add(this.partGroup);
@@ -647,11 +756,12 @@ class PrinterSlice3DViewer {
         this.hotend = createSleekHotend();
         this.bedGroup.add(this.hotend.group);
 
-        this.trailLength = 35;
+        // Светящийся шлейф расплавленного пластика за соплом
+        this.trailLength = 32;
         const trailPositions = new Float32Array(this.trailLength * 3);
         this.trailGeo = new THREE.BufferGeometry();
         this.trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPositions, 3));
-        this.trailMat = new THREE.LineBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.95 });
+        this.trailMat = new THREE.LineBasicMaterial({ color: 0xff385c, transparent: true, opacity: 0.95 });
         this.trailLine = new THREE.Line(this.trailGeo, this.trailMat);
         this.bedGroup.add(this.trailLine);
 
@@ -661,17 +771,42 @@ class PrinterSlice3DViewer {
         this.contourCursor = 0;
         this.isPrinting = false;
 
+        // Плавное вращение и интерактивное управление с авто-возобновлением
         this.isDragging = false;
         this.prevX = 0;
-        this.rotY = 0.5;
-        container.addEventListener('mousedown', (e) => { this.isDragging = true; this.prevX = e.clientX; });
-        window.addEventListener('mouseup', () => { this.isDragging = false; });
-        window.addEventListener('mousemove', (e) => {
-            if (!this.isDragging) return;
-            this.rotY += (e.clientX - this.prevX) * 0.01;
-            this.prevX = e.clientX;
-        });
+        this.rotY = 0.55;
+        this.lastInteractTime = 0;
+        this.autoRotateSpeed = 0.0016;
 
+        const onStart = (clientX) => {
+            this.isDragging = true;
+            this.prevX = clientX;
+            this.lastInteractTime = performance.now();
+        };
+        const onMove = (clientX) => {
+            if (!this.isDragging) return;
+            this.rotY += (clientX - this.prevX) * 0.008;
+            this.prevX = clientX;
+            this.lastInteractTime = performance.now();
+        };
+        const onEnd = () => {
+            this.isDragging = false;
+            this.lastInteractTime = performance.now();
+        };
+
+        container.addEventListener('mousedown', (e) => onStart(e.clientX));
+        window.addEventListener('mouseup', onEnd);
+        window.addEventListener('mousemove', (e) => onMove(e.clientX));
+
+        container.addEventListener('touchstart', (e) => {
+            if (e.touches && e.touches.length === 1) onStart(e.touches[0].clientX);
+        }, { passive: true });
+        window.addEventListener('touchend', onEnd, { passive: true });
+        window.addEventListener('touchmove', (e) => {
+            if (e.touches && e.touches.length === 1) onMove(e.touches[0].clientX);
+        }, { passive: true });
+
+        this.applyThemeColors(getSavedTheme());
         window.addEventListener('resize', () => this.resize());
 
         this.clock = 0;
@@ -691,35 +826,46 @@ class PrinterSlice3DViewer {
     }
 
     _buildPeiPlate() {
-        const plateGeo = new THREE.BoxGeometry(3.8, 0.1, 3.8);
-        const plateMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.55, roughness: 0.35 });
-        const plate = new THREE.Mesh(plateGeo, plateMat);
-        plate.position.y = -0.05;
+        // Текстурированный матовый пружинный стол PEI (без белого бликового пятна)
+        const plateGeo = new THREE.BoxGeometry(3.8, 0.08, 3.8);
+        this.plateMat = new THREE.MeshStandardMaterial({
+            color: 0x14121a,
+            metalness: 0.12,
+            roughness: 0.85
+        });
+        const plate = new THREE.Mesh(plateGeo, this.plateMat);
+        plate.position.y = -0.04;
         this.bedGroup.add(plate);
 
-        const grid = new THREE.GridHelper(3.6, 18, 0x3b82f6, 0x1e293b);
+        // Карминовая координатная сетка стола
+        const grid = new THREE.GridHelper(3.6, 18, 0xbe123c, 0x2e283b);
         grid.position.y = 0.004;
         this.bedGroup.add(grid);
 
+        // Калибровочная линия очистки сопла (Purge Line)
         const purgeGeo = new THREE.BoxGeometry(2.4, 0.012, 0.035);
-        const purgeMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
+        const purgeMat = new THREE.MeshBasicMaterial({ color: 0xbe123c });
         const purgeLine = new THREE.Mesh(purgeGeo, purgeMat);
         purgeLine.position.set(0, 0.008, 1.72);
         this.bedGroup.add(purgeLine);
+    }
+
+    applyThemeColors(theme) {
+        if (!this.plateMat) return;
+        this.plateMat.color.setHex(theme === 'light' ? 0x24202e : 0x14121a);
+        if (this.printedEdges && this.printedEdges.material) {
+            this.printedEdges.material.color.setHex(theme === 'light' ? 0x3d0714 : 0x6e0d22);
+        }
     }
 
     updatePartAndProgress(data) {
         this.resize();
         const pct = Math.max(0, Math.min(100, data.progress || 0));
         this.isPrinting = (data.status === 'printing' && data.has_active_job && pct < 100);
-        const sku = data.has_active_job ? data.sku : 'IDLE';
-        const baseColor = new THREE.Color(data.spool_hex || '#3b82f6');
+        const sku = data.has_active_job ? data.sku : 'GEAR-PLANET';
 
-        const displayColor = baseColor.clone();
-        if (displayColor.r < 0.22 && displayColor.g < 0.22 && displayColor.b < 0.25) {
-            displayColor.setHex(0x334155);
-        }
-        const capColor = displayColor.clone().lerp(new THREE.Color(0x60a5fa), 0.28);
+        // Откалиброванный благородный сатиновый рубин/кармин
+        const displayColor = calibratePartColor(data.spool_hex || '#be123c');
 
         if (this.hotend && this.hotend.filamentRodMat) {
             this.hotend.filamentRodMat.color.copy(displayColor);
@@ -731,93 +877,136 @@ class PrinterSlice3DViewer {
             }
             this.currentSku = sku;
 
-            if (data.has_active_job) {
-                const built = createProceduralPartGeometry(sku);
-                this.maxHeight = built.maxHeight;
-                this.contourPoints = built.contourPoints;
+            const built = createProceduralPartGeometry(sku);
+            this.maxHeight = built.maxHeight;
+            this.contourPoints = built.contourPoints;
 
-                const frontMat = new THREE.MeshStandardMaterial({
-                    color: displayColor,
-                    metalness: 0.25,
-                    roughness: 0.35,
-                    bumpMap: this.layerBumpTex,
-                    bumpScale: 0.015,
-                    side: THREE.FrontSide,
-                    clippingPlanes: [this.printedClipPlane]
-                });
-                this.frontMesh = new THREE.Mesh(built.geo, frontMat);
-                this.partGroup.add(this.frontMesh);
+            // 1. Основное объёмное тело детали (сатиновый благородный пластик с микроструктурой слоёв)
+            const frontMat = new THREE.MeshStandardMaterial({
+                color: displayColor,
+                metalness: 0.08,
+                roughness: 0.48,
+                bumpMap: this.layerBumpTex,
+                bumpScale: 0.008,
+                side: THREE.FrontSide,
+                clippingPlanes: [this.printedClipPlane]
+            });
+            this.frontMesh = new THREE.Mesh(built.geo, frontMat);
+            this.partGroup.add(this.frontMesh);
 
-                const backCapMat = new THREE.MeshBasicMaterial({
-                    color: capColor,
-                    side: THREE.BackSide,
-                    clippingPlanes: [this.printedClipPlane]
-                });
-                this.backCapMesh = new THREE.Mesh(built.geo, backCapMat);
-                this.partGroup.add(this.backCapMesh);
+            // 2. Сплошная верхняя крышка слоя среза (100% заполнение, исключает прозрачность)
+            const topCapMat = new THREE.MeshStandardMaterial({
+                color: displayColor.clone().offsetHSL(0, -0.03, 0.04),
+                metalness: 0.05,
+                roughness: 0.42,
+                bumpMap: this.topInfillTex,
+                bumpScale: 0.006,
+                side: THREE.DoubleSide
+            });
+            this.topCapMesh = new THREE.Mesh(built.capGeo, topCapMat);
+            this.partGroup.add(this.topCapMesh);
 
-                const activeLayerMat = new THREE.MeshBasicMaterial({
-                    color: 0x38bdf8,
-                    side: THREE.DoubleSide,
-                    clippingPlanes: [this.printedClipPlane, this.layerBottomPlane]
-                });
-                this.activeLayerMesh = new THREE.Mesh(built.geo, activeLayerMat);
-                this.partGroup.add(this.activeLayerMesh);
+            // 3. Чёткие контуры граней (зубья, фаски, отверстия видны максимально контрастно)
+            const edgesGeo = new THREE.EdgesGeometry(built.geo, 16);
+            const edgeHex = getSavedTheme() === 'light' ? 0x3d0714 : 0x6e0d22;
+            const printedEdgesMat = new THREE.LineBasicMaterial({
+                color: edgeHex,
+                linewidth: 1.5,
+                clippingPlanes: [this.printedClipPlane]
+            });
+            this.printedEdges = new THREE.LineSegments(edgesGeo, printedEdgesMat);
+            this.partGroup.add(this.printedEdges);
 
-                const edgesGeo = new THREE.EdgesGeometry(built.geo, 22);
-                const ghostMat = new THREE.LineBasicMaterial({
-                    color: 0x64748b,
-                    transparent: true,
-                    opacity: 0.2,
-                    clippingPlanes: [this.ghostClipPlane]
+            // 4. Активный периметр спекания внешнего контура соплом
+            const perimeterPoints = this.contourPoints.map(p => new THREE.Vector3(p.x, 0, p.z));
+            const perimeterGeo = new THREE.BufferGeometry().setFromPoints(perimeterPoints);
+            const activePerimeterMat = new THREE.LineBasicMaterial({
+                color: 0xff385c,
+                linewidth: 2.2
+            });
+            this.activePerimeterLine = new THREE.LineLoop(perimeterGeo, activePerimeterMat);
+            this.partGroup.add(this.activePerimeterLine);
+
+            // 5. Активные периметры внутренних отверстий
+            this.holePerimeterGroup = new THREE.Group();
+            if (built.holeContours && built.holeContours.length > 0) {
+                built.holeContours.forEach(hPts => {
+                    const hGeo = new THREE.BufferGeometry().setFromPoints(hPts.map(p => new THREE.Vector3(p.x, 0, p.z)));
+                    const hLine = new THREE.LineLoop(hGeo, new THREE.LineBasicMaterial({ color: 0xff385c, linewidth: 1.8 }));
+                    this.holePerimeterGroup.add(hLine);
                 });
-                this.ghostEdges = new THREE.LineSegments(edgesGeo, ghostMat);
-                this.partGroup.add(this.ghostEdges);
-            } else {
-                this.contourPoints = [];
             }
-        } else if (this.frontMesh) {
-            this.frontMesh.material.color.copy(displayColor);
-            this.backCapMesh.material.color.copy(capColor);
+            this.partGroup.add(this.holePerimeterGroup);
+
+            // 6. Полупрозрачный контур будущей модели над слоем печати
+            const ghostMat = new THREE.LineBasicMaterial({
+                color: 0x64748b,
+                transparent: true,
+                opacity: 0.16,
+                clippingPlanes: [this.ghostClipPlane]
+            });
+            this.ghostEdges = new THREE.LineSegments(edgesGeo, ghostMat);
+            this.partGroup.add(this.ghostEdges);
+        } else {
+            if (this.frontMesh) this.frontMesh.material.color.copy(displayColor);
+            if (this.topCapMesh) this.topCapMesh.material.color.copy(displayColor.clone().offsetHSL(0, -0.03, 0.04));
         }
 
-        this.targetCutHeight = data.has_active_job ? (pct / 100.0) * this.maxHeight : 0.0;
-
-        if (this.activeLayerMesh) {
-            this.activeLayerMesh.visible = data.has_active_job && pct > 0 && pct < 100;
-        }
-        if (this.ghostEdges) {
-            this.ghostEdges.visible = data.has_active_job && pct < 100;
-        }
-        this.hotend.group.visible = data.has_active_job && pct > 0 && pct < 100;
-        this.trailLine.visible = this.isPrinting && this.contourPoints.length > 0;
+        this.targetCutHeight = (pct / 100.0) * this.maxHeight;
+        if (this.ghostEdges) this.ghostEdges.visible = (pct < 100);
+        if (this.hotend) this.hotend.group.visible = (pct > 0 && pct < 100);
+        if (this.trailLine) this.trailLine.visible = (pct > 0 && pct < 100 && this.contourPoints.length > 0);
     }
 
     animate() {
         requestAnimationFrame(this.animate);
         this.clock += 0.03;
 
-        if (!this.isDragging) {
-            this.rotY += 0.003;
+        // Плавный поворот витрины при бездействии пользователя (> 3.5 сек)
+        const timeSinceInteract = performance.now() - this.lastInteractTime;
+        if (!this.isDragging && timeSinceInteract > 3500) {
+            this.rotY += this.autoRotateSpeed;
         }
-        this.bedGroup.rotation.y += (this.rotY - this.bedGroup.rotation.y) * 0.1;
+        this.bedGroup.rotation.y += (this.rotY - this.bedGroup.rotation.y) * 0.08;
 
+        // Вращение крыльчатки кулера охлаждения
         if (this.hotend && this.hotend.fanRotor) {
             this.hotend.fanRotor.rotation.x += 0.35;
+        }
+
+        // Дыхание накала сопла (эффект нагревательного блока)
+        if (this.hotend && this.hotend.tipLight) {
+            const heatGlow = 0.8 + 0.2 * Math.sin(this.clock * 4.5);
+            this.hotend.tipLight.intensity = heatGlow * 1.0;
         }
 
         this.currentCutHeight += (this.targetCutHeight - this.currentCutHeight) * 0.1;
 
         this.printedClipPlane.constant = this.currentCutHeight;
-        this.layerBottomPlane.constant = -(this.currentCutHeight - this.layerBandThickness);
         this.ghostClipPlane.constant = -this.currentCutHeight;
+
+        const isActivelyPrinting = this.currentCutHeight > 0.02 && this.currentCutHeight < this.maxHeight - 0.01;
+
+        if (this.topCapMesh) {
+            this.topCapMesh.position.y = this.currentCutHeight;
+            this.topCapMesh.visible = (this.currentCutHeight > 0.015);
+        }
+
+        if (this.activePerimeterLine) {
+            this.activePerimeterLine.position.y = this.currentCutHeight + 0.002;
+            this.activePerimeterLine.visible = isActivelyPrinting;
+        }
+
+        if (this.holePerimeterGroup) {
+            this.holePerimeterGroup.position.y = this.currentCutHeight + 0.002;
+            this.holePerimeterGroup.visible = isActivelyPrinting;
+        }
 
         const layerY = Math.max(0.01, this.currentCutHeight);
 
-        if (this.isPrinting && this.contourPoints.length > 1) {
+        if (this.contourPoints.length > 1) {
             this.contourCursor = (this.contourCursor + 0.85) % this.contourPoints.length;
             const totalPts = this.contourPoints.length;
-
             const idx0 = Math.floor(this.contourCursor);
             const idx1 = (idx0 + 1) % totalPts;
             const frac = this.contourCursor - idx0;
@@ -845,21 +1034,21 @@ class PrinterSlice3DViewer {
 }
 
 async function initOverviewPrintBed3D(container) {
-    const viewer = new PrinterSlice3DViewer(container);
     const printerId = container.dataset.printerId;
+    overviewViewer = new PrinterSlice3DViewer(container);
 
     if (printerId) {
         try {
             const res = await fetch(`/api/printer/${printerId}/telemetry`);
             if (res.ok) {
                 const data = await res.json();
-                viewer.updatePartAndProgress(data);
+                overviewViewer.updatePartAndProgress(data);
 
                 const skuEl = document.getElementById('overview-part-sku');
-                if (skuEl && data.sku) skuEl.textContent = data.sku;
+                if (skuEl) skuEl.textContent = data.sku;
 
                 const remEl = document.getElementById('overview-remaining');
-                if (remEl && data.remaining_ru) remEl.textContent = data.remaining_ru;
+                if (remEl) remEl.textContent = data.remaining_ru;
 
                 const layerEl = document.getElementById('overview-layer-badge');
                 if (layerEl && data.has_active_job) {
@@ -872,22 +1061,19 @@ async function initOverviewPrintBed3D(container) {
         }
     }
 
-    // Если все станки свободны — показываем демонстрационную шестерню, чтобы экран не пустовал
-    viewer.updatePartAndProgress({
+    overviewViewer.updatePartAndProgress({
         status: 'printing',
         has_active_job: true,
         sku: 'GEAR-PLANET',
-        spool_hex: '#2563eb',
-        progress: 65
+        spool_hex: '#9f1239',
+        progress: 45
     });
 }
 
-// ============================================================================
-// ОТКРЫТИЕ МОДАЛЬНОГО ОКНА 3D-ТЕЛЕМЕТРИИ ЛЮБОГО ПРИНТЕРА
-// ============================================================================
 async function openPrinterTelemetryModal(printerId) {
     await ensureThreeJsLoaded();
-    const modalEl = ensureTelemetryModalExists();
+    const modalEl = document.getElementById('printerTelemetryModal');
+    if (!modalEl) return;
 
     currentTelemetryPrinterId = printerId;
     telemetryChangedFlag = false;
@@ -897,7 +1083,6 @@ async function openPrinterTelemetryModal(printerId) {
 
     await refreshPrinterTelemetryData(printerId);
 
-    // Пересчитываем размер 3D-холста после завершения анимации открытия модального окна
     setTimeout(() => { if (telemetryViewer) telemetryViewer.resize(); }, 80);
     setTimeout(() => { if (telemetryViewer) telemetryViewer.resize(); }, 250);
 }

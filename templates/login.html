@@ -7,149 +7,661 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <style>
+        :root {
+            --bg-deep: #0c0b10;
+            --card-surface: rgba(20, 18, 27, 0.88);
+            --border-subtle: #262230;
+            --border-glow: rgba(225, 29, 72, 0.35);
+            --accent-ruby: #be123c;
+            --accent-crimson: #e11d48;
+            --accent-glow: rgba(225, 29, 72, 0.25);
+            --text-primary: #f5f4f8;
+            --text-secondary: #9692a4;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
         body {
-            background: radial-gradient(circle at 50% 20%, #1e293b 0%, #090d16 100%);
+            background-color: var(--bg-deep);
+            background-image:
+                radial-gradient(circle at 50% 25%, #1d182b 0%, transparent 65%),
+                radial-gradient(circle at 10% 85%, rgba(190, 18, 60, 0.08) 0%, transparent 45%),
+                radial-gradient(circle at 90% 75%, rgba(16, 185, 129, 0.05) 0%, transparent 45%);
             min-height: 100vh;
+            margin: 0;
+            padding: 1.5rem;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-family: 'Segoe UI', system-ui, sans-serif;
-            color: #f8fafc;
-            margin: 0;
-            padding: 1rem;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            color: var(--text-primary);
+            overflow-x: hidden;
+            position: relative;
         }
+
+        /* 1. ИНТЕРАКТИВНЫЙ ФОНОВЫЙ ХОЛСТ ЧАСТИЦ (CONSTELLATION CANVAS) */
+        #bg-particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* 2. 3D-КАРТОЧКА ВХОДА С ПЕРСПЕКТИВНЫМ НАКЛОНОМ */
+        .card-wrapper {
+            perspective: 1200px;
+            width: 100%;
+            max-width: 440px;
+            z-index: 1;
+            position: relative;
+        }
+
         .login-card {
             width: 100%;
-            max-width: 430px;
-            background: rgba(17, 24, 39, 0.85);
-            backdrop-filter: blur(16px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 1.15rem;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 0 35px rgba(59, 130, 246, 0.15);
-            padding: 2.5rem 2.2rem;
+            background: var(--card-surface);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--border-subtle);
+            border-radius: 1.35rem;
+            box-shadow:
+                0 30px 60px -15px rgba(0, 0, 0, 0.8),
+                0 0 45px -10px var(--accent-glow),
+                inset 0 1px 0 rgba(255, 255, 255, 0.08);
+            padding: 2.6rem 2.3rem;
+            position: relative;
+            transform-style: preserve-3d;
+            transition: transform 0.2s cubic-bezier(0.2, 0, 0.2, 1), box-shadow 0.25s ease, border-color 0.25s ease;
         }
+
+        .login-card:hover {
+            border-color: var(--border-glow);
+            box-shadow:
+                0 35px 70px -15px rgba(0, 0, 0, 0.85),
+                0 0 55px -5px rgba(225, 29, 72, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.12);
+        }
+
+        /* 3. ДИНАМИЧЕСКИЙ БЛИК СТЕКЛА ПРИ ДВИЖЕНИИ МЫШИ */
+        .card-sheen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            border-radius: 1.35rem;
+            pointer-events: none;
+            background: radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.06), transparent 70%);
+            opacity: 0.7;
+            transition: opacity 0.3s ease;
+        }
+
+        /* 4. 3D-ХОЛОГРАФИЧЕСКИЙ КУБ В ЗАГОЛОВКЕ */
+        .cube-header {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 1.8rem;
+        }
+
+        #cube-canvas-container {
+            width: 84px;
+            height: 84px;
+            margin-bottom: 0.75rem;
+            position: relative;
+            cursor: pointer;
+        }
+
+        #cube-canvas-container canvas {
+            display: block;
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        .brand-badge {
+            background: rgba(190, 18, 60, 0.14);
+            border: 1px solid rgba(225, 29, 72, 0.35);
+            color: #fb7185;
+            font-size: 0.70rem;
+            font-weight: 700;
+            padding: 0.25rem 0.75rem;
+            border-radius: 2rem;
+            letter-spacing: 0.6px;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.45rem;
+            margin-bottom: 0.6rem;
+            text-transform: uppercase;
+        }
+
+        .live-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #10b981;
+            box-shadow: 0 0 8px #10b981;
+            animation: radarLive 1.8s infinite cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        @keyframes radarLive {
+            0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.8); }
+            70% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        }
+
+        .brand-title {
+            font-size: 1.65rem;
+            font-weight: 800;
+            letter-spacing: -0.3px;
+            margin: 0;
+            background: linear-gradient(135deg, #ffffff 65%, #fca5a5 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .brand-subtitle {
+            font-size: 0.84rem;
+            color: var(--text-secondary);
+            margin-top: 0.25rem;
+            margin-bottom: 0;
+        }
+
+        /* 5. ПОЛЯ ВВОДА И ЛЕЙБЛЫ */
         .form-label {
-            color: #cbd5e1;
-            font-size: 0.85rem;
+            color: #c4c1d0;
+            font-size: 0.83rem;
             font-weight: 500;
-            margin-bottom: 0.4rem;
+            margin-bottom: 0.42rem;
+            display: flex;
+            justify-content: space-between;
         }
+
+        .input-group {
+            border-radius: 0.65rem;
+            overflow: hidden;
+            transition: box-shadow 0.2s ease, border-color 0.2s ease;
+        }
+
         .input-group-text {
-            background: #0f172a;
-            border: 1px solid #334155;
+            background-color: #0e0c13;
+            border: 1px solid #2a2536;
             border-right: none;
-            color: #94a3b8;
+            color: #7b768c;
+            padding-left: 0.95rem;
+            padding-right: 0.75rem;
+            font-size: 0.95rem;
+            transition: border-color 0.2s ease, color 0.2s ease;
         }
+
         .form-control {
-            background-color: #0f172a !important;
-            border: 1px solid #334155;
+            background-color: #0e0c13 !important;
+            border: 1px solid #2a2536;
             border-left: none;
             color: #ffffff !important;
-            padding: 0.68rem 0.75rem;
+            padding: 0.72rem 0.85rem;
+            font-size: 0.92rem;
+            transition: border-color 0.2s ease;
         }
+
+        .form-control::placeholder {
+            color: #5d586d !important;
+        }
+
         .form-control:focus {
             box-shadow: none;
-            border-color: #3b82f6;
+            border-color: var(--accent-ruby);
         }
+
+        .input-group:focus-within {
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+
         .input-group:focus-within .input-group-text {
-            border-color: #3b82f6;
-            color: #3b82f6;
+            border-color: var(--accent-ruby);
+            color: #fb7185;
         }
+
+        /* 6. КНОПКА ВХОДА СО СВЕТОВЫМ БЛИКОМ (SHIMMER) */
         .btn-submit {
-            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            position: relative;
+            background: linear-gradient(135deg, #be123c 0%, #9f1239 100%);
             border: none;
-            color: #fff;
-            font-weight: 600;
-            padding: 0.75rem;
-            border-radius: 0.55rem;
-            transition: all 0.2s ease;
-        }
-        .btn-submit:hover {
-            background: linear-gradient(135deg, #3b82f6, #2563eb);
-            transform: translateY(-1px);
-            box-shadow: 0 6px 16px rgba(37, 99, 235, 0.4);
-        }
-        .demo-chip {
-            background: rgba(15, 23, 42, 0.9);
-            border: 1px solid #334155;
-            color: #cbd5e1;
-            font-size: 0.78rem;
-            padding: 0.45rem 0.75rem;
-            border-radius: 0.5rem;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            flex: 1;
-        }
-        .demo-chip:hover {
-            background: #2563eb;
             color: #ffffff;
-            border-color: #3b82f6;
+            font-weight: 600;
+            font-size: 0.95rem;
+            padding: 0.82rem 1.2rem;
+            border-radius: 0.65rem;
+            transition: all 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+            overflow: hidden;
+            cursor: pointer;
+            box-shadow: 0 6px 18px rgba(190, 18, 60, 0.35);
+        }
+
+        .btn-submit::after {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -60%;
+            width: 40%;
+            height: 200%;
+            background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.25), transparent);
+            transform: rotate(30deg);
+            transition: left 0.6s ease;
+        }
+
+        .btn-submit:hover {
+            background: linear-gradient(135deg, #e11d48 0%, #be123c 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 10px 24px rgba(225, 29, 72, 0.45);
+            color: #ffffff;
+        }
+
+        .btn-submit:hover::after {
+            left: 120%;
+        }
+
+        .btn-submit:active {
+            transform: translateY(1px);
+            box-shadow: 0 3px 10px rgba(190, 18, 60, 0.4);
+        }
+
+        /* 7. КАРТОЧКИ ДЕМО-РОЛЕЙ (АДМИН / МЕНЕДЖЕР / ОПЕРАТОР) */
+        .demo-roles-container {
+            margin-top: 1.8rem;
+            padding-top: 1.4rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            text-align: center;
+        }
+
+        .demo-title {
+            font-size: 0.74rem;
+            color: #8c879d;
+            margin-bottom: 0.75rem;
+            font-weight: 500;
+        }
+
+        .demo-cards-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.55rem;
+        }
+
+        .role-chip {
+            background: rgba(14, 12, 19, 0.9);
+            border: 1px solid #2a2536;
+            border-radius: 0.6rem;
+            padding: 0.6rem 0.4rem;
+            color: #c4c1d0;
+            font-size: 0.76rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.35rem;
+        }
+
+        .role-chip i {
+            font-size: 1.05rem;
+            transition: transform 0.2s ease;
+        }
+
+        .role-chip.admin:hover {
+            background: rgba(190, 18, 60, 0.22);
+            border-color: #be123c;
+            color: #ffffff;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(190, 18, 60, 0.3);
+        }
+        .role-chip.admin i { color: #fb7185; }
+
+        .role-chip.manager:hover {
+            background: rgba(245, 158, 11, 0.2);
+            border-color: #f59e0b;
+            color: #ffffff;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(245, 158, 11, 0.25);
+        }
+        .role-chip.manager i { color: #fbbf24; }
+
+        .role-chip.operator:hover {
+            background: rgba(16, 185, 129, 0.2);
+            border-color: #10b981;
+            color: #ffffff;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(16, 185, 129, 0.25);
+        }
+        .role-chip.operator i { color: #34d399; }
+
+        .role-chip:hover i {
+            transform: scale(1.15);
         }
     </style>
 </head>
 <body>
 
-<div class="login-card">
-    <div class="text-center mb-4">
-        <div class="d-inline-flex p-3 rounded-4 bg-primary bg-opacity-10 text-primary mb-2 border border-primary border-opacity-25">
-            <i class="bi bi-box-seam-fill fs-2"></i>
-        </div>
-        <h3 class="fw-bold mb-1 text-white">PrintFarm 3D</h3>
-        <p style="color: #94a3b8; font-size: 0.86rem;">Информационная система учёта заказов и 3D-печати</p>
-    </div>
+<!-- Интерактивный фон с частицами -->
+<canvas id="bg-particles"></canvas>
 
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            {% for cat, msg in messages %}
-                <div class="alert alert-danger py-2 px-3 small border-0 mb-3" style="background: rgba(239, 68, 68, 0.15); color: #fca5a5;">
-                    <i class="bi bi-exclamation-triangle-fill me-1"></i> {{ msg }}
+<div class="card-wrapper" id="cardWrapper">
+    <div class="login-card" id="loginCard">
+        <div class="card-sheen" id="cardSheen"></div>
+
+        <!-- Заголовок с 3D-кубом калибровки -->
+        <div class="cube-header">
+            <div id="cube-canvas-container" title="3D Калибровочный куб"></div>
+            <div class="brand-badge">
+                <span class="live-dot"></span> PrintFarm OS • Node 01
+            </div>
+            <h1 class="brand-title">PrintFarm 3D</h1>
+            <p class="brand-subtitle">Система управления производством 3D-печати</p>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for cat, msg in messages %}
+                    <div class="alert alert-danger py-2 px-3 small border-0 mb-3 rounded-3" style="background: rgba(239, 68, 68, 0.16); color: #fca5a5; border-left: 3px solid #ef4444 !important;">
+                        <i class="bi bi-exclamation-triangle-fill me-1"></i> {{ msg }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <form method="POST" id="loginForm">
+            <div class="mb-3">
+                <label class="form-label">
+                    <span><i class="bi bi-person me-1"></i>Логин сотрудника</span>
+                </label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-person-fill"></i></span>
+                    <input type="text" id="username" name="username" class="form-control" placeholder="Введите логин" required autofocus autocomplete="username">
                 </div>
-            {% endfor %}
-        {% endif %}
-    {% endwith %}
-
-    <form method="POST" id="loginForm">
-        <div class="mb-3">
-            <label class="form-label">Логин сотрудника</label>
-            <div class="input-group">
-                <span class="input-group-text"><i class="bi bi-person-fill"></i></span>
-                <input type="text" id="username" name="username" class="form-control" placeholder="Введите логин" required autofocus>
             </div>
-        </div>
 
-        <div class="mb-4">
-            <label class="form-label">Пароль</label>
-            <div class="input-group">
-                <span class="input-group-text"><i class="bi bi-shield-lock-fill"></i></span>
-                <input type="password" id="password" name="password" class="form-control" placeholder="•••••" required>
+            <div class="mb-4">
+                <label class="form-label">
+                    <span><i class="bi bi-key me-1"></i>Пароль доступа</span>
+                </label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-shield-lock-fill"></i></span>
+                    <input type="password" id="password" name="password" class="form-control" placeholder="•••••" required autocomplete="current-password">
+                </div>
             </div>
-        </div>
 
-        <button type="submit" class="btn btn-submit w-100">Войти в систему</button>
-    </form>
+            <button type="submit" class="btn btn-submit w-100" id="btnSubmit">
+                <i class="bi bi-box-arrow-in-right me-2"></i> Войти в систему
+            </button>
+        </form>
 
-    <div class="mt-4 pt-3 border-top border-secondary border-opacity-25 text-center">
-        <div style="font-size: 0.76rem; color: #94a3b8; margin-bottom: 0.6rem;">Быстрый вход для демонстрации ролей:</div>
-        <div class="d-flex justify-content-center gap-2">
-            <button type="button" class="demo-chip" onclick="loginAs('admin')">
-                <i class="bi bi-shield-check d-block mb-1 text-primary"></i>Админ
-            </button>
-            <button type="button" class="demo-chip" onclick="loginAs('manager')">
-                <i class="bi bi-briefcase d-block mb-1 text-info"></i>Менеджер
-            </button>
-            <button type="button" class="demo-chip" onclick="loginAs('operator')">
-                <i class="bi bi-cpu d-block mb-1 text-success"></i>Оператор
-            </button>
+        <div class="demo-roles-container">
+            <div class="demo-title">Быстрый вход для тестирования ролей:</div>
+            <div class="demo-cards-grid">
+                <button type="button" class="role-chip admin" onclick="loginAs('admin')">
+                    <i class="bi bi-shield-check"></i>
+                    <span>Админ</span>
+                </button>
+                <button type="button" class="role-chip manager" onclick="loginAs('manager')">
+                    <i class="bi bi-briefcase"></i>
+                    <span>Менеджер</span>
+                </button>
+                <button type="button" class="role-chip operator" onclick="loginAs('operator')">
+                    <i class="bi bi-cpu"></i>
+                    <span>Оператор</span>
+                </button>
+            </div>
         </div>
     </div>
 </div>
 
+<!-- Three.js для фонового 3D-куба -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+
 <script>
+    // -------------------------------------------------------------
+    // 1. АВТО-ЗАПОЛНЕНИЕ И ВХОД В ОДИН КЛИК
+    // -------------------------------------------------------------
     function loginAs(role) {
-        document.getElementById('username').value = role;
-        document.getElementById('password').value = '12345';
-        document.getElementById('loginForm').submit();
+        const u = document.getElementById('username');
+        const p = document.getElementById('password');
+        const b = document.getElementById('btnSubmit');
+
+        u.value = role;
+        p.value = '12345';
+        b.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Авторизация...';
+        b.disabled = true;
+
+        setTimeout(() => {
+            document.getElementById('loginForm').submit();
+        }, 120);
     }
+
+    // -------------------------------------------------------------
+    // 2. ИНТЕРАКТИВНЫЙ 3D-КАЛИБРОВОЧНЫЙ КУБ В ЗАГОЛОВКЕ (THREE.JS)
+    // -------------------------------------------------------------
+    (function initCube3D() {
+        const container = document.getElementById('cube-canvas-container');
+        if (!container || typeof THREE === 'undefined') return;
+
+        const w = container.clientWidth || 84;
+        const h = container.clientHeight || 84;
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(40, w / h, 0.1, 100);
+        camera.position.set(2.4, 2.0, 2.8);
+        camera.lookAt(0, 0, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(w, h);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        container.appendChild(renderer.domElement);
+
+        scene.add(new THREE.AmbientLight(0xffffff, 0.85));
+        const dirLight = new THREE.DirectionalLight(0xfff5ea, 1.4);
+        dirLight.position.set(3, 4, 3);
+        scene.add(dirLight);
+
+        const rimLight = new THREE.DirectionalLight(0xfb7185, 0.8);
+        rimLight.position.set(-3, -2, -3);
+        scene.add(rimLight);
+
+        // Калибровочный кубик FDM со скошенными фасками и сатиновым рубиновым филаментом
+        const cubeGroup = new THREE.Group();
+        scene.add(cubeGroup);
+
+        const cubeGeo = new THREE.BoxGeometry(1.2, 1.2, 1.2);
+        const cubeMat = new THREE.MeshStandardMaterial({
+            color: 0xbe123c,
+            roughness: 0.42,
+            metalness: 0.12
+        });
+        const cubeMesh = new THREE.Mesh(cubeGeo, cubeMat);
+        cubeGroup.add(cubeMesh);
+
+        // Чёткие неоновые контуры рёбер
+        const edgesGeo = new THREE.EdgesGeometry(cubeGeo);
+        const edgesMat = new THREE.LineBasicMaterial({ color: 0xff4d6d, linewidth: 1.5 });
+        const edgesLine = new THREE.LineSegments(edgesGeo, edgesMat);
+        cubeGroup.add(edgesLine);
+
+        // Маленькое лазерное сопло над кубиком
+        const nozzleGeo = new THREE.ConeGeometry(0.12, 0.22, 12);
+        nozzleGeo.rotateX(Math.PI);
+        const nozzleMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.9, roughness: 0.2 });
+        const nozzle = new THREE.Mesh(nozzleGeo, nozzleMat);
+        nozzle.position.set(0.4, 0.78, 0.4);
+        cubeGroup.add(nozzle);
+
+        // Светящаяся капля расплава
+        const sparkGeo = new THREE.SphereGeometry(0.045, 8, 8);
+        const sparkMat = new THREE.MeshBasicMaterial({ color: 0xff385c });
+        const spark = new THREE.Mesh(sparkGeo, sparkMat);
+        spark.position.set(0.4, 0.64, 0.4);
+        cubeGroup.add(spark);
+
+        let targetRotX = 0.35;
+        let targetRotY = 0.65;
+        let clock = 0;
+
+        window.addEventListener('mousemove', (e) => {
+            const nx = (e.clientX / window.innerWidth) - 0.5;
+            const ny = (e.clientY / window.innerHeight) - 0.5;
+            targetRotY = 0.65 + nx * 0.8;
+            targetRotX = 0.35 + ny * 0.5;
+        });
+
+        function animateCube() {
+            requestAnimationFrame(animateCube);
+            clock += 0.02;
+
+            cubeGroup.rotation.y += 0.008;
+            cubeGroup.rotation.x += (targetRotX - cubeGroup.rotation.x) * 0.08;
+            cubeGroup.position.y = Math.sin(clock * 2) * 0.05;
+
+            // Дыхание накала сопла
+            spark.scale.setScalar(0.9 + 0.25 * Math.sin(clock * 6));
+
+            renderer.render(scene, camera);
+        }
+        animateCube();
+    })();
+
+    // -------------------------------------------------------------
+    // 3. 3D-НАКЛОН КАРТОЧКИ ПРИ ДВИЖЕНИИ КУРСОРА (PERSPECTIVE TILT)
+    // -------------------------------------------------------------
+    (function initTilt() {
+        const card = document.getElementById('loginCard');
+        const sheen = document.getElementById('cardSheen');
+        if (!card) return;
+
+        let mouseX = 0, mouseY = 0;
+        let currentTiltX = 0, currentTiltY = 0;
+        let isHovered = false;
+
+        window.addEventListener('mousemove', (e) => {
+            const cx = window.innerWidth / 2;
+            const cy = window.innerHeight / 2;
+            mouseX = (e.clientX - cx) / cx;
+            mouseY = (e.clientY - cy) / cy;
+            isHovered = true;
+
+            // Блик на стекле
+            const rect = card.getBoundingClientRect();
+            const lx = e.clientX - rect.left;
+            const ly = e.clientY - rect.top;
+            if (sheen) {
+                sheen.style.background = `radial-gradient(circle 340px at ${lx}px ${ly}px, rgba(255, 255, 255, 0.18) 0%, rgba(225, 29, 72, 0.14) 30%, rgba(225, 29, 72, 0.04) 55%, transparent 75%)`;
+            }
+        });
+
+        document.addEventListener('mouseleave', () => {
+            isHovered = false;
+        });
+
+        function updateTilt() {
+            requestAnimationFrame(updateTilt);
+            const targetX = isHovered ? -mouseY * 6 : 0;
+            const targetY = isHovered ? mouseX * 6 : 0;
+
+            currentTiltX += (targetX - currentTiltX) * 0.1;
+            currentTiltY += (targetY - currentTiltY) * 0.1;
+
+            card.style.transform = `rotateX(${currentTiltX.toFixed(2)}deg) rotateY(${currentTiltY.toFixed(2)}deg)`;
+        }
+        updateTilt();
+    })();
+
+    // -------------------------------------------------------------
+    // 4. ЖИВЫЕ ИНТЕРАКТИВНЫЕ ЧАСТИЦЫ НА ФОНЕ (CONSTELLATION)
+    // -------------------------------------------------------------
+    (function initParticles() {
+        const canvas = document.getElementById('bg-particles');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+
+        let width = canvas.width = window.innerWidth;
+        let height = canvas.height = window.innerHeight;
+
+        window.addEventListener('resize', () => {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+        });
+
+        const count = Math.min(65, Math.floor((width * height) / 18000));
+        const particles = [];
+        let mouse = { x: -9999, y: -9999 };
+
+        window.addEventListener('mousemove', (e) => {
+            mouse.x = e.clientX;
+            mouse.y = e.clientY;
+        });
+
+        for (let i = 0; i < count; i++) {
+            particles.push({
+                x: Math.random() * width,
+                y: Math.random() * height,
+                vx: (Math.random() - 0.5) * 0.5,
+                vy: (Math.random() - 0.5) * 0.5,
+                radius: Math.random() * 1.8 + 0.8,
+                color: Math.random() > 0.4 ? '#be123c' : (Math.random() > 0.5 ? '#fb7185' : '#475569')
+            });
+        }
+
+        function draw() {
+            requestAnimationFrame(draw);
+            ctx.clearRect(0, 0, width, height);
+
+            for (let i = 0; i < count; i++) {
+                const p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+
+                if (p.x < 0) p.x = width;
+                if (p.x > width) p.x = 0;
+                if (p.y < 0) p.y = height;
+                if (p.y > height) p.y = 0;
+
+                // Взаимодействие с курсором
+                const dx = p.x - mouse.x;
+                const dy = p.y - mouse.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < 120) {
+                    const force = (120 - dist) / 120;
+                    p.x += (dx / dist) * force * 1.5;
+                    p.y += (dy / dist) * force * 1.5;
+                }
+
+                // Рисование точки
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                ctx.fillStyle = p.color;
+                ctx.globalAlpha = 0.65;
+                ctx.fill();
+
+                // Линии связей между соседними частицами
+                for (let j = i + 1; j < count; j++) {
+                    const p2 = particles[j];
+                    const djx = p.x - p2.x;
+                    const djy = p.y - p2.y;
+                    const d = Math.sqrt(djx * djx + djy * djy);
+                    if (d < 110) {
+                        ctx.beginPath();
+                        ctx.moveTo(p.x, p.y);
+                        ctx.lineTo(p2.x, p2.y);
+                        ctx.strokeStyle = '#be123c';
+                        ctx.globalAlpha = (1 - d / 110) * 0.22;
+                        ctx.lineWidth = 0.9;
+                        ctx.stroke();
+                    }
+                }
+            }
+        }
+        draw();
+    })();
 </script>
 
 </body>

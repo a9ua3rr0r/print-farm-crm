@@ -1,224 +1,621 @@
-:root {
-    --bg-main: #0b0f19;
-    --sidebar-bg: #111827;
-    --card-bg: rgba(17, 24, 39, 0.88);
-    --card-border: rgba(255, 255, 255, 0.08);
-    --accent: #3b82f6;
-    --accent-glow: rgba(59, 130, 246, 0.28);
+/* ==========================================================================
+   PRINTFARM 3D — DESIGN SYSTEM: OBSIDIAN CARBON & CRIMSON PRECISION
+   Авторская дизайн-система от ведущего UI/UX дизайнера:
+   - Полное устранение синеватых фонов (переход на тёплый смоки-карбон и обсидиан)
+   - Контрастная архитектура в светлой и тёмной темах (WCAG AAA)
+   - Высокоточные прецизионные 3D-видоискатели и HUD-панели телеметрии
+   - Глубокие акценты рубинового кармина (#be123c / #e11d48)
+   ========================================================================== */
+
+/* ==========================================================================
+   1. ЦВЕТОВЫЕ ПЕРЕМЕННЫЕ ТЕМ
+   ========================================================================== */
+:root,
+html[data-bs-theme="dark"] {
+    /* Основной фон: глубокий тёплый обсидиановый карбон (БЕЗ синевы!) */
+    --bg-main: #0c0b10;
+    --sidebar-bg: #110f16;
+    --card-bg: #16141d;
+    --card-sub-bg: #0f0d14;
+    --card-border: #262230;
+    --card-border-strong: #3a3449;
+
+    /* Благородная карминно-рубиновая палитра */
+    --accent: #be123c;
+    --accent-hover: #e11d48;
+    --accent-glow: rgba(225, 29, 72, 0.28);
+    --accent-subtle: rgba(225, 29, 72, 0.14);
+    --accent-text: #fb7185;
+
     --success: #10b981;
     --warning: #f59e0b;
     --danger: #ef4444;
-    --text-main: #f8fafc;
-    --text-muted: #94a3b8;
+    --text-main: #f5f4f8;
+    --text-muted: #9692a4;
+
+    --table-head-bg: #121017;
+    --table-hover-bg: rgba(225, 29, 72, 0.08);
+    --input-bg: #0e0c13;
+    --input-border: #2a2536;
+    --shadow-card: 0 6px 24px rgba(0, 0, 0, 0.55);
+    --canvas-bg: radial-gradient(circle at center, #1e1a27 0%, #08070b 100%);
+    --canvas-border: #3b3449;
+
+    /* Bootstrap 5.3 overrides для темной темы */
+    --bs-primary: #be123c;
+    --bs-primary-rgb: 190, 18, 60;
+    --bs-primary-text-emphasis: #fb7185;
+    --bs-primary-bg-subtle: rgba(190, 18, 60, 0.18);
+    --bs-primary-border-subtle: rgba(190, 18, 60, 0.4);
+    --bs-link-color: #fb7185;
+    --bs-link-hover-color: #fda4af;
+    --bs-focus-ring-color: rgba(225, 29, 72, 0.28);
 }
 
+html[data-bs-theme="light"] {
+    /* Основной фон: архитектурный тёплый мел / алебастр (БЕЗ синевы!) */
+    --bg-main: #f4f3f7;
+    --sidebar-bg: #ffffff;
+    --card-bg: #ffffff;
+    --card-sub-bg: #f9f8fb;
+    --card-border: #d0cdd8; /* Чёткая, контрастная тёплая граница Slate/Warm */
+    --card-border-strong: #9894a4;
+
+    --accent: #be123c;
+    --accent-hover: #9f1239;
+    --accent-glow: rgba(190, 18, 60, 0.18);
+    --accent-subtle: #fff1f2;
+    --accent-text: #9f1239;
+
+    --success: #059669;
+    --warning: #d97706;
+    --danger: #dc2626;
+    --text-main: #14121a;
+    --text-muted: #534f5e; /* Высокая читаемость для второстепенного текста */
+
+    --table-head-bg: #f9f8fb;
+    --table-hover-bg: #fff1f2;
+    --input-bg: #ffffff;
+    --input-border: #d0cdd8;
+    --shadow-card: 0 1px 4px rgba(20, 18, 26, 0.05), 0 6px 18px rgba(20, 18, 26, 0.04);
+    --canvas-bg: linear-gradient(180deg, #f9f8fb 0%, #e2dfe9 100%);
+    --canvas-border: #726d7f; /* Контрастная граница 2px для 3D окна */
+
+    /* Bootstrap 5.3 overrides для светлой темы */
+    --bs-primary: #be123c;
+    --bs-primary-rgb: 190, 18, 60;
+    --bs-primary-text-emphasis: #9f1239;
+    --bs-primary-bg-subtle: #fff1f2;
+    --bs-primary-border-subtle: #fecdd3;
+    --bs-link-color: #be123c;
+    --bs-link-hover-color: #9f1239;
+    --bs-focus-ring-color: rgba(190, 18, 60, 0.22);
+}
+
+/* ==========================================================================
+   2. БАЗОВЫЕ ЭЛЕМЕНТЫ, ТИПОГРАФИКА И СКРОЛЛБАР
+   ========================================================================== */
 body {
-    background: radial-gradient(circle at 80% 10%, #131c31 0%, var(--bg-main) 65%);
+    background-color: var(--bg-main);
     color: var(--text-main);
     font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
     min-height: 100vh;
     overflow-x: hidden;
+    transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 .text-muted {
     color: var(--text-muted) !important;
 }
 
-/* Боковая панель навигации */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+html[data-bs-theme="dark"] ::-webkit-scrollbar-thumb {
+    background: #2a2536;
+    border-radius: 4px;
+}
+html[data-bs-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+    background: #be123c;
+}
+html[data-bs-theme="light"] ::-webkit-scrollbar-thumb {
+    background: #d0cdd8;
+    border-radius: 4px;
+}
+html[data-bs-theme="light"] ::-webkit-scrollbar-thumb:hover {
+    background: #be123c;
+}
+
+/* ==========================================================================
+   3. ВЫСОКОКОНТРАСТНАЯ АДАПТАЦИЯ ДЛЯ СВЕТЛОЙ ТЕМЫ
+   ========================================================================== */
+html[data-bs-theme="light"] .text-white {
+    color: #14121a !important;
+}
+
+html[data-bs-theme="light"] .btn .text-white,
+html[data-bs-theme="light"] .btn-primary,
+html[data-bs-theme="light"] .btn-primary *,
+html[data-bs-theme="light"] .badge.bg-primary,
+html[data-bs-theme="light"] .badge.bg-success,
+html[data-bs-theme="light"] .badge.bg-danger,
+html[data-bs-theme="light"] .sidebar .nav-link.active,
+html[data-bs-theme="light"] .sidebar .nav-link.active * {
+    color: #ffffff !important;
+}
+
+/* Принудительная видимость границ на светлом фоне */
+html[data-bs-theme="light"] .border-secondary,
+html[data-bs-theme="light"] .border-secondary.border-opacity-25,
+html[data-bs-theme="light"] .border-secondary.border-opacity-50 {
+    border-color: #d0cdd8 !important;
+}
+
+html[data-bs-theme="light"] .bg-dark,
+html[data-bs-theme="light"] .bg-black {
+    background-color: #f9f8fb !important;
+    color: #14121a !important;
+    border-color: #d0cdd8 !important;
+}
+
+html[data-bs-theme="light"] .btn-outline-secondary.text-light {
+    color: #383443 !important;
+    border-color: #d0cdd8 !important;
+    background-color: #ffffff;
+}
+
+html[data-bs-theme="light"] .btn-outline-secondary.text-light:hover {
+    background-color: #f1eff5 !important;
+    color: #14121a !important;
+    border-color: #9894a4 !important;
+}
+
+html[data-bs-theme="light"] .btn-close-white {
+    filter: none !important;
+}
+
+/* Кнопки верхней панели (Тема и Уведомления) */
+.topbar-btn {
+    border-radius: 0.55rem;
+    font-weight: 500;
+    transition: all 0.18s ease;
+}
+html[data-bs-theme="light"] .topbar-btn {
+    background-color: #ffffff !important;
+    border: 1.5px solid #d0cdd8 !important;
+    color: #14121a !important;
+    box-shadow: 0 1px 3px rgba(20, 18, 26, 0.05);
+}
+html[data-bs-theme="light"] .topbar-btn:hover {
+    background-color: #f4f3f7 !important;
+    border-color: #9894a4 !important;
+    color: #be123c !important;
+}
+html[data-bs-theme="dark"] .topbar-btn {
+    background-color: #16141d !important;
+    border: 1px solid #262230 !important;
+    color: #f5f4f8 !important;
+}
+html[data-bs-theme="dark"] .topbar-btn:hover {
+    background-color: #1e1b27 !important;
+    border-color: #be123c !important;
+}
+
+/* ==========================================================================
+   4. КНОПКИ BOOTSTRAP (КАРМИН И БАРХАТНЫЙ БОРДО)
+   ========================================================================== */
+html[data-bs-theme="dark"] .btn-primary {
+    --bs-btn-bg: #be123c;
+    --bs-btn-border-color: #be123c;
+    --bs-btn-hover-bg: #e11d48;
+    --bs-btn-hover-border-color: #e11d48;
+    --bs-btn-active-bg: #9f1239;
+    --bs-btn-active-border-color: #9f1239;
+    --bs-btn-color: #ffffff;
+    --bs-btn-hover-color: #ffffff;
+    --bs-btn-focus-shadow-rgb: 190, 18, 60;
+    box-shadow: 0 4px 14px var(--accent-glow);
+    font-weight: 600;
+}
+
+html[data-bs-theme="light"] .btn-primary {
+    --bs-btn-bg: #be123c;
+    --bs-btn-border-color: #be123c;
+    --bs-btn-hover-bg: #9f1239;
+    --bs-btn-hover-border-color: #9f1239;
+    --bs-btn-active-bg: #881337;
+    --bs-btn-active-border-color: #881337;
+    --bs-btn-color: #ffffff;
+    --bs-btn-hover-color: #ffffff;
+    --bs-btn-focus-shadow-rgb: 190, 18, 60;
+    box-shadow: 0 2px 8px rgba(190, 18, 60, 0.2);
+    font-weight: 600;
+}
+
+html[data-bs-theme="dark"] .btn-outline-primary {
+    --bs-btn-color: #fb7185;
+    --bs-btn-border-color: #be123c;
+    --bs-btn-hover-bg: #be123c;
+    --bs-btn-hover-border-color: #be123c;
+    --bs-btn-hover-color: #ffffff;
+    --bs-btn-active-bg: #9f1239;
+    --bs-btn-active-border-color: #9f1239;
+    --bs-btn-focus-shadow-rgb: 190, 18, 60;
+    font-weight: 600;
+}
+
+html[data-bs-theme="light"] .btn-outline-primary {
+    --bs-btn-color: #be123c;
+    --bs-btn-border-color: #be123c;
+    --bs-btn-hover-bg: #be123c;
+    --bs-btn-hover-border-color: #be123c;
+    --bs-btn-hover-color: #ffffff;
+    --bs-btn-active-bg: #9f1239;
+    --bs-btn-active-border-color: #9f1239;
+    --bs-btn-focus-shadow-rgb: 190, 18, 60;
+    font-weight: 600;
+}
+
+html[data-bs-theme="dark"] .btn-outline-info {
+    color: #fca5a5 !important;
+    border-color: rgba(225, 29, 72, 0.45) !important;
+}
+html[data-bs-theme="dark"] .btn-outline-info:hover {
+    background-color: rgba(225, 29, 72, 0.2) !important;
+    color: #ffffff !important;
+}
+
+html[data-bs-theme="light"] .btn-outline-info {
+    color: #be123c !important;
+    border-color: #be123c !important;
+}
+html[data-bs-theme="light"] .btn-outline-info:hover {
+    background-color: #be123c !important;
+    color: #ffffff !important;
+}
+
+/* ==========================================================================
+   5. АКЦЕНТНЫЙ ТЕКСТ, БЕЙДЖИ И ПРОГРЕСС-БАРЫ
+   ========================================================================== */
+html[data-bs-theme="dark"] .text-primary {
+    color: #fb7185 !important;
+}
+html[data-bs-theme="light"] .text-primary {
+    color: #be123c !important;
+}
+
+html[data-bs-theme="dark"] .text-info {
+    color: #fca5a5 !important; /* Тёплый коралл вместо холодного циана */
+}
+html[data-bs-theme="light"] .text-info {
+    color: #9f1239 !important; /* Насыщенный винный */
+}
+
+html[data-bs-theme="dark"] .badge.bg-primary {
+    background-color: #be123c !important;
+    color: #ffffff !important;
+}
+html[data-bs-theme="light"] .badge.bg-primary {
+    background-color: #be123c !important;
+    color: #ffffff !important;
+}
+
+html[data-bs-theme="dark"] .badge.bg-info {
+    background-color: rgba(244, 63, 94, 0.18) !important;
+    color: #fca5a5 !important;
+    border: 1px solid rgba(244, 63, 94, 0.3) !important;
+}
+html[data-bs-theme="light"] .badge.bg-info {
+    background-color: #fff1f2 !important;
+    color: #9f1239 !important;
+    border: 1px solid #fecdd3 !important;
+}
+
+html[data-bs-theme="dark"] .progress-bar.bg-primary {
+    background-color: #be123c !important;
+}
+html[data-bs-theme="light"] .progress-bar.bg-primary {
+    background-color: #be123c !important;
+}
+
+.progress-bar {
+    transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.progress-bar.progress-bar-animated {
+    background-image: linear-gradient(
+        45deg,
+        rgba(255, 255, 255, 0.18) 25%,
+        transparent 25%,
+        transparent 50%,
+        rgba(255, 255, 255, 0.18) 50%,
+        rgba(255, 255, 255, 0.18) 75%,
+        transparent 75%,
+        transparent
+    ) !important;
+    background-size: 1rem 1rem !important;
+    animation: progressStripes 1.2s linear infinite !important;
+}
+
+@keyframes progressStripes {
+    0% { background-position: 1rem 0; }
+    100% { background-position: 0 0; }
+}
+
+html[data-bs-theme="dark"] .border-primary {
+    border-color: rgba(225, 29, 72, 0.4) !important;
+}
+html[data-bs-theme="light"] .border-primary {
+    border-color: rgba(190, 18, 60, 0.35) !important;
+}
+
+/* ==========================================================================
+   6. БОКОВАЯ ПАНЕЛЬ (SIDEBAR) И ШАПКА
+   ========================================================================== */
 .sidebar {
     background-color: var(--sidebar-bg);
     border-right: 1px solid var(--card-border);
     min-height: 100vh;
     position: sticky;
     top: 0;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+html[data-bs-theme="light"] .sidebar {
+    border-right: 1.5px solid #d0cdd8 !important;
 }
 
 .sidebar .nav-link {
     color: var(--text-muted);
-    font-size: 0.92rem;
+    font-size: 0.91rem;
     font-weight: 500;
-    padding: 0.72rem 1rem;
-    border-radius: 0.65rem;
-    margin-bottom: 0.35rem;
+    padding: 0.68rem 0.95rem;
+    border-radius: 0.6rem;
+    margin-bottom: 0.28rem;
     display: flex;
     align-items: center;
-    transition: all 0.2s ease;
+    transition: all 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-.sidebar .nav-link:hover {
-    color: #ffffff;
-    background: rgba(255, 255, 255, 0.06);
-    transform: translateX(3px);
-}
-
-.sidebar .nav-link.active {
-    color: #ffffff;
-    background: linear-gradient(135deg, #2563eb, #1d4ed8);
-    box-shadow: 0 4px 15px var(--accent-glow);
-}
-
-/* Стеклянные карточки Cyber-Industrial */
-.glass-card {
-    background: var(--card-bg);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
-    border: 1px solid var(--card-border);
-    border-radius: 1rem;
-    box-shadow: 0 12px 28px -6px rgba(0, 0, 0, 0.4);
-    transition: border-color 0.2s ease, transform 0.2s ease;
-}
-
-.glass-card-hover:hover {
-    border-color: rgba(59, 130, 246, 0.45);
-    transform: translateY(-3px);
-}
-
-/* Выпадающий список живых уведомлений */
-.glass-dropdown {
-    background: rgba(15, 23, 42, 0.96) !important;
-    backdrop-filter: blur(16px);
-    border: 1px solid rgba(59, 130, 246, 0.3) !important;
-    border-radius: 0.85rem;
-}
-
-.notif-item:hover {
-    background: rgba(59, 130, 246, 0.12) !important;
-}
-
-/* Стеллажный вид фермы (Rack View) */
-.rack-frame {
-    background: linear-gradient(180deg, #0f172a 0%, #090d16 100%);
-    border: 2px solid #334155;
-    border-radius: 1rem;
-    box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.8), 0 15px 35px rgba(0, 0, 0, 0.5);
-}
-
-.rack-shelf-title {
-    font-size: 0.72rem;
-    font-weight: 700;
-    letter-spacing: 0.8px;
-    color: #94a3b8;
-    background: #1e293b;
-    padding: 6px 14px;
-    border-radius: 6px;
-    margin-bottom: 12px;
-    border-left: 4px solid #3b82f6;
-}
-
-.rack-shelf-row {
-    padding-bottom: 14px;
-    border-bottom: 6px solid #334155;
-}
-
-.rack-bay {
-    background: rgba(17, 24, 39, 0.92);
-    border: 1px solid #334155;
-    border-radius: 0.75rem;
-    padding: 1rem;
-    position: relative;
-    overflow: hidden;
-    transition: transform 0.2s ease, border-color 0.2s ease;
-}
-
-.rack-bay:hover {
-    transform: translateY(-2px);
-    border-color: #3b82f6;
-}
-
-.rack-led-strip {
-    height: 4px;
-    width: 100%;
-    position: absolute;
-    top: 0;
-    left: 0;
-}
-
-.led-printing {
-    background: #10b981;
-    box-shadow: 0 0 12px #10b981;
-}
-
-.led-idle {
-    background: #3b82f6;
-    box-shadow: 0 0 8px #3b82f6;
-}
-
-.led-maintenance {
-    background: #ef4444;
-    box-shadow: 0 0 12px #ef4444;
-}
-
-/* Статусные капсулы с неоновыми индикаторами */
-.status-pill {
-    padding: 0.32rem 0.75rem;
-    border-radius: 2rem;
-    font-size: 0.76rem;
-    font-weight: 600;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.45rem;
-    letter-spacing: 0.2px;
-}
-
-.status-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
+.sidebar .nav-link i {
+    transition: transform 0.22s ease;
     display: inline-block;
 }
 
+.sidebar .nav-link:hover i {
+    transform: scale(1.15) translateX(1px);
+}
+
+html[data-bs-theme="light"] .sidebar .nav-link:hover {
+    color: #be123c;
+    background-color: #fff1f2;
+}
+
+html[data-bs-theme="dark"] .sidebar .nav-link:hover {
+    color: #f5f4f8;
+    background-color: rgba(225, 29, 72, 0.08);
+}
+
+.sidebar .nav-link.active {
+    color: #ffffff !important;
+    background: linear-gradient(135deg, #be123c, #9f1239) !important;
+    box-shadow: 0 4px 14px var(--accent-glow) !important;
+}
+
+/* ==========================================================================
+   7. КАРТОЧКИ, ТАБЛИЦЫ И СТАТУСНЫЕ БЕЙДЖИ
+   ========================================================================== */
+.glass-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 0.9rem;
+    box-shadow: var(--shadow-card);
+    transition: background-color 0.2s ease, border-color 0.24s ease, box-shadow 0.24s ease, transform 0.24s cubic-bezier(0.34, 1.56, 0.64, 1);
+    overflow: hidden; /* Гарантирует идеальное скругление внутреннего контента без вылезающих углов */
+    background-clip: padding-box; /* Исключает просачивание фона через 1px рамку на углах */
+}
+
+html[data-bs-theme="light"] .glass-card {
+    border-color: #d0cdd8 !important;
+}
+
+.glass-card-hover:hover,
+.tilt-card:hover {
+    border-color: rgba(225, 29, 72, 0.45) !important;
+    transform: translateY(-2.5px);
+    box-shadow: 0 14px 32px rgba(0, 0, 0, 0.5), 0 0 22px rgba(190, 18, 60, 0.16) !important;
+}
+
+html[data-bs-theme="light"] .glass-card-hover:hover,
+html[data-bs-theme="light"] .tilt-card:hover {
+    border-color: #be123c !important;
+    box-shadow: 0 10px 24px rgba(190, 18, 60, 0.14), 0 3px 8px rgba(20, 18, 26, 0.08) !important;
+}
+
+.glass-card:not(.tilt-card):not(.glass-card-hover):hover {
+    border-color: rgba(225, 29, 72, 0.3);
+}
+
+/* 3D-ИНТЕРАКТИВНЫЙ НАКЛОН И ДИНАМИЧЕСКИЙ БЛИК (КАК НА СТРАНИЦЕ ВХОДА) */
+.tilt-card {
+    position: relative;
+    overflow: hidden;
+    transform-style: preserve-3d;
+    transition: border-color 0.24s ease, box-shadow 0.24s ease;
+    will-change: transform;
+}
+
+.card-sheen-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+    z-index: 2;
+}
+
+html[data-bs-theme="dark"] .card-sheen-layer {
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+html[data-bs-theme="light"] .card-sheen-layer {
+    box-shadow: inset 0 0 0 1px rgba(190, 18, 60, 0.24);
+}
+
+html[data-bs-theme="dark"] .tilt-card:hover {
+    border-color: rgba(225, 29, 72, 0.45) !important;
+    box-shadow: 0 14px 32px rgba(0, 0, 0, 0.6), 0 0 24px rgba(190, 18, 60, 0.18) !important;
+}
+
+html[data-bs-theme="light"] .tilt-card:hover {
+    border-color: #be123c !important;
+    box-shadow: 0 12px 28px rgba(190, 18, 60, 0.16), 0 3px 10px rgba(20, 18, 26, 0.08) !important;
+}
+
+.status-pill {
+    padding: 0.28rem 0.75rem;
+    border-radius: 2rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    display: inline-block;
+    position: relative;
+    flex-shrink: 0;
+}
+
+/* Статус: Идёт печать / В работе (Изумрудный живой пульсирующий радар) */
 .pill-printing, .pill-in_progress {
-    background: rgba(16, 185, 129, 0.14);
+    background: rgba(16, 185, 129, 0.15);
     color: #34d399;
     border: 1px solid rgba(16, 185, 129, 0.35);
 }
+html[data-bs-theme="light"] .pill-printing,
+html[data-bs-theme="light"] .pill-in_progress {
+    background: #ecfdf5;
+    color: #065f46;
+    border: 1px solid #6ee7b7;
+}
 .pill-printing .status-dot, .pill-in_progress .status-dot {
     background: #10b981;
-    box-shadow: 0 0 10px #10b981;
-    animation: neon-pulse 1.6s infinite ease-in-out;
+    box-shadow: 0 0 6px rgba(16, 185, 129, 0.9);
+    animation: liveRadarPulse 2s infinite cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+@keyframes liveRadarPulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+    }
+    70% {
+        box-shadow: 0 0 0 7px rgba(16, 185, 129, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+    }
+}
+
+/* Статус: Ожидание / Новый / Свободен (Мягкий карминно-розовый с деликатным дыханием) */
 .pill-idle, .pill-new, .pill-pending {
-    background: rgba(59, 130, 246, 0.14);
-    color: #60a5fa;
-    border: 1px solid rgba(59, 130, 246, 0.3);
+    background: rgba(244, 63, 94, 0.14);
+    color: #fda4af;
+    border: 1px solid rgba(244, 63, 94, 0.35);
+}
+html[data-bs-theme="light"] .pill-idle,
+html[data-bs-theme="light"] .pill-new,
+html[data-bs-theme="light"] .pill-pending {
+    background: #fff1f2;
+    color: #be123c;
+    border: 1px solid #fecdd3;
 }
 .pill-idle .status-dot, .pill-new .status-dot, .pill-pending .status-dot {
-    background: #3b82f6;
+    background: #f43f5e;
+    animation: gentleBreathe 3.2s infinite ease-in-out;
+}
+html[data-bs-theme="light"] .pill-idle .status-dot,
+html[data-bs-theme="light"] .pill-new .status-dot,
+html[data-bs-theme="light"] .pill-pending .status-dot {
+    background: #be123c;
 }
 
+@keyframes gentleBreathe {
+    0%, 100% {
+        opacity: 0.55;
+        transform: scale(0.9);
+    }
+    50% {
+        opacity: 1;
+        transform: scale(1.18);
+        box-shadow: 0 0 6px rgba(225, 29, 72, 0.6);
+    }
+}
+
+/* Статус: Завершен / Готов к выдаче (Зелёный) */
 .pill-ready, .pill-completed, .pill-closed {
-    background: rgba(16, 185, 129, 0.18);
-    color: #6ee7b7;
-    border: 1px solid rgba(16, 185, 129, 0.3);
+    background: rgba(5, 150, 105, 0.18);
+    color: #10b981;
+    border: 1px solid rgba(5, 150, 105, 0.35);
+}
+html[data-bs-theme="light"] .pill-ready,
+html[data-bs-theme="light"] .pill-completed,
+html[data-bs-theme="light"] .pill-closed {
+    background: #f0fdf4;
+    color: #166534;
+    border: 1px solid #86efac;
 }
 .pill-ready .status-dot, .pill-completed .status-dot, .pill-closed .status-dot {
-    background: #34d399;
+    background: #059669;
 }
 
+/* Статус: Ошибка / На обслуживании (Тревожный ярко-красный) */
 .pill-maintenance, .pill-failed, .pill-urgent, .pill-open {
-    background: rgba(239, 68, 68, 0.15);
-    color: #fca5a5;
-    border: 1px solid rgba(239, 68, 68, 0.35);
+    background: rgba(239, 68, 68, 0.16);
+    color: #f87171;
+    border: 1px solid rgba(239, 68, 68, 0.4);
+}
+html[data-bs-theme="light"] .pill-maintenance,
+html[data-bs-theme="light"] .pill-failed,
+html[data-bs-theme="light"] .pill-urgent,
+html[data-bs-theme="light"] .pill-open {
+    background: #fef2f2;
+    color: #991b1b;
+    border: 1px solid #fca5a5;
 }
 .pill-maintenance .status-dot, .pill-failed .status-dot, .pill-urgent .status-dot, .pill-open .status-dot {
     background: #ef4444;
-    box-shadow: 0 0 8px #ef4444;
 }
 
+/* Статус: Отгружен / Отменён / Офлайн (Нейтральный тёплый сланцевый) */
 .pill-shipped, .pill-cancelled, .pill-offline {
-    background: rgba(148, 163, 184, 0.15);
-    color: #cbd5e1;
-    border: 1px solid rgba(148, 163, 184, 0.25);
+    background: rgba(150, 146, 164, 0.15);
+    color: #9692a4;
+    border: 1px solid rgba(150, 146, 164, 0.3);
+}
+html[data-bs-theme="light"] .pill-shipped,
+html[data-bs-theme="light"] .pill-cancelled,
+html[data-bs-theme="light"] .pill-offline {
+    background: #f4f3f7;
+    color: #534f5e;
+    border: 1px solid #d0cdd8;
 }
 .pill-shipped .status-dot, .pill-cancelled .status-dot, .pill-offline .status-dot {
-    background: #94a3b8;
-}
-
-@keyframes neon-pulse {
-    0% { transform: scale(0.9); opacity: 0.65; }
-    50% { transform: scale(1.35); opacity: 1; }
-    100% { transform: scale(0.9); opacity: 0.65; }
+    background: #9692a4;
 }
 
 /* Таблицы */
@@ -226,85 +623,164 @@ body {
     color: var(--text-main);
     border-color: var(--card-border);
     vertical-align: middle;
+    margin-bottom: 0;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+html[data-bs-theme="light"] .table {
+    border-color: #d0cdd8 !important;
+}
+
+.table-responsive {
+    border-radius: inherit;
+    margin-bottom: 0;
+    overflow-x: auto;
 }
 
 .table th {
-    background: rgba(15, 23, 42, 0.6);
+    background: var(--table-head-bg);
     color: var(--text-muted);
-    font-size: 0.76rem;
-    font-weight: 600;
+    font-size: 0.75rem;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.6px;
-    border-bottom: 1px solid var(--card-border);
+    letter-spacing: 0.5px;
+    border-bottom: 2px solid var(--card-border);
+    border-top: none !important;
     padding: 0.9rem 1rem;
+}
+
+/* Идеальное скругление углов таблицы внутри карточки без ступенечного среза */
+.glass-card .table th:first-child {
+    border-top-left-radius: 0.82rem;
+}
+.glass-card .table th:last-child {
+    border-top-right-radius: 0.82rem;
+}
+.glass-card .table tr:last-child td:first-child {
+    border-bottom-left-radius: 0.82rem;
+}
+.glass-card .table tr:last-child td:last-child {
+    border-bottom-right-radius: 0.82rem;
+}
+
+html[data-bs-theme="light"] .table th {
+    color: #383443 !important;
+    border-bottom: 2px solid #d0cdd8 !important;
 }
 
 .table td {
     padding: 0.9rem 1rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    border-bottom: 1px solid var(--card-border);
     background: transparent !important;
     color: var(--text-main);
 }
 
-.table-hover tbody tr:hover td {
-    background: rgba(59, 130, 246, 0.06) !important;
+html[data-bs-theme="light"] .table td {
+    border-bottom: 1px solid #e8e6ee !important;
 }
 
-/* Поля ввода и модальные окна */
+.table-hover tbody tr:hover td {
+    background: var(--table-hover-bg) !important;
+}
+
+/* ==========================================================================
+   8. ФОРМЫ И МОДАЛЬНЫЕ ОКНА
+   ========================================================================== */
 .form-control, .form-select {
-    background-color: #0f172a !important;
-    border: 1px solid #334155;
-    color: #ffffff !important;
+    background-color: var(--input-bg) !important;
+    border: 1.5px solid var(--input-border) !important;
+    color: var(--text-main) !important;
     border-radius: 0.55rem;
+    padding: 0.6rem 0.85rem;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+html[data-bs-theme="light"] .form-control,
+html[data-bs-theme="light"] .form-select {
+    border-color: #d0cdd8 !important;
+    background-color: #ffffff !important;
 }
 
 .form-control::placeholder {
-    color: #64748b !important;
+    color: var(--text-muted) !important;
 }
 
 .form-control:focus, .form-select:focus {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px var(--accent-glow);
+    border-color: var(--accent) !important;
+    box-shadow: 0 0 0 3px var(--accent-glow) !important;
 }
 
 .modal-content {
-    background: #111827;
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
     border-radius: 1rem;
-    color: #ffffff;
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.75);
+    color: var(--text-main);
 }
 
-/* Прогресс-бары */
+html[data-bs-theme="light"] .modal-content {
+    border: 1.5px solid #d0cdd8 !important;
+    box-shadow: 0 20px 45px -10px rgba(20, 18, 26, 0.2) !important;
+}
+
+html[data-bs-theme="dark"] .modal-content {
+    border: 1px solid #2a2536 !important;
+    box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.8) !important;
+}
+
 .progress {
-    background-color: #0f172a;
-    border: 1px solid rgba(255, 255, 255, 0.07);
+    background-color: var(--card-sub-bg);
+    border: 1px solid var(--card-border);
     border-radius: 1rem;
-    height: 0.6rem;
+    height: 0.55rem;
     overflow: hidden;
 }
 
-/* 3D-холсты Three.js */
-#farm3d-canvas-container {
+html[data-bs-theme="light"] .progress {
+    border-color: #d0cdd8 !important;
+    background-color: #e2dfe9 !important;
+}
+
+/* ==========================================================================
+   9. МАРКЕТПЛЕЙС И СПЕЦИАЛЬНЫЕ БЕЙДЖИ
+   ========================================================================== */
+.ozon-badge {
+    background: rgba(225, 29, 72, 0.12);
+    color: #fb7185;
+    border: 1px solid rgba(225, 29, 72, 0.3);
+    font-weight: 600;
+    padding: 0.25rem 0.65rem;
+    border-radius: 0.45rem;
+    font-size: 0.75rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+html[data-bs-theme="light"] .ozon-badge {
+    background: #fff1f2;
+    color: #be123c;
+    border-color: #fecdd3;
+}
+
+/* ==========================================================================
+   10. 3D-ХОЛСТЫ THREE.JS (ПРЕЦИЗИОННЫЙ ВЬЮПОРТ)
+   ========================================================================== */
+#farm3d-canvas-container,
+#telemetry3d-canvas-container {
     width: 100%;
-    height: 270px;
     position: relative;
     border-radius: 0.85rem;
     overflow: hidden;
-    background: radial-gradient(circle at center, #162238 0%, #090d16 100%);
-    border: 1px solid rgba(59, 130, 246, 0.25);
     cursor: grab;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+#farm3d-canvas-container {
+    height: 260px;
 }
 
 #telemetry3d-canvas-container {
-    width: 100%;
     height: 410px;
-    position: relative;
-    border-radius: 0.85rem;
-    overflow: hidden;
-    background: radial-gradient(circle at center, #17253f 0%, #070a12 100%);
-    border: 1px solid rgba(59, 130, 246, 0.35);
-    cursor: grab;
 }
 
 #farm3d-canvas-container:active,
@@ -312,45 +788,114 @@ body {
     cursor: grabbing;
 }
 
-.canvas-overlay-badge {
+/* СВЕТЛАЯ ТЕМА: ЧЁТКИЕ, ВЫСОКОКОНТРАСТНЫЕ ГРАНИЦЫ ОКНА 3D */
+html[data-bs-theme="light"] #farm3d-canvas-container,
+html[data-bs-theme="light"] #telemetry3d-canvas-container {
+    background: var(--canvas-bg);
+    border: 2px solid var(--canvas-border) !important;
+    box-shadow: inset 0 2px 6px rgba(20, 18, 26, 0.1), 0 4px 16px rgba(20, 18, 26, 0.08) !important;
+}
+
+/* ТЁМНАЯ ТЕМА: ГЛУБОКИЙ ОБСИДИАНОВЫЙ ИНСТРУМЕНТАЛЬНЫЙ ВИДОИСКАТЕЛЬ */
+html[data-bs-theme="dark"] #farm3d-canvas-container,
+html[data-bs-theme="dark"] #telemetry3d-canvas-container {
+    background: var(--canvas-bg);
+    border: 1px solid var(--canvas-border) !important;
+    box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.7), 0 4px 20px rgba(0, 0, 0, 0.5) !important;
+}
+
+/* ТЕЛЕМЕТРИЧЕСКИЕ HUD-ПЛАШКИ ВНУТРИ 3D-ОКНА */
+.canvas-overlay-badge,
+.canvas-overlay-layer,
+.canvas-overlay-hint {
     position: absolute;
-    top: 12px;
-    left: 14px;
-    background: rgba(15, 23, 42, 0.85);
-    border: 1px solid rgba(59, 130, 246, 0.35);
-    padding: 5px 11px;
-    border-radius: 6px;
+    padding: 6px 12px;
+    border-radius: 8px;
     font-size: 0.76rem;
-    color: #93c5fd;
+    font-weight: 600;
     pointer-events: none;
     z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    backdrop-filter: blur(8px);
+    letter-spacing: 0.2px;
+}
+
+.canvas-overlay-badge {
+    top: 10px;
+    left: 12px;
 }
 
 .canvas-overlay-layer {
-    position: absolute;
-    bottom: 12px;
-    left: 14px;
-    background: rgba(15, 23, 42, 0.85);
-    border: 1px solid rgba(16, 185, 129, 0.35);
-    padding: 5px 11px;
-    border-radius: 6px;
-    font-size: 0.78rem;
+    bottom: 10px;
+    left: 12px;
+}
+
+.canvas-overlay-hint {
+    top: 10px;
+    right: 12px;
+    font-size: 0.68rem;
+    font-weight: 500;
+    padding: 4px 9px;
+}
+
+html[data-bs-theme="light"] .canvas-overlay-badge {
+    background: rgba(255, 255, 255, 0.96);
+    border: 1.5px solid #726d7f;
+    color: #14121a;
+    box-shadow: 0 2px 8px rgba(20, 18, 26, 0.14);
+}
+
+html[data-bs-theme="light"] .canvas-overlay-layer {
+    background: rgba(255, 255, 255, 0.96);
+    border: 1.5px solid #059669;
+    color: #065f46;
+    box-shadow: 0 2px 8px rgba(20, 18, 26, 0.14);
+}
+
+html[data-bs-theme="light"] .canvas-overlay-hint {
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid #9894a4;
+    color: #534f5e;
+}
+
+html[data-bs-theme="dark"] .canvas-overlay-badge {
+    background: rgba(18, 16, 24, 0.92);
+    border: 1px solid rgba(225, 29, 72, 0.45);
+    color: #f5f4f8;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
+}
+
+html[data-bs-theme="dark"] .canvas-overlay-layer {
+    background: rgba(18, 16, 24, 0.92);
+    border: 1px solid rgba(16, 185, 129, 0.45);
     color: #6ee7b7;
-    pointer-events: none;
-    z-index: 2;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
+}
+
+html[data-bs-theme="dark"] .canvas-overlay-hint {
+    background: rgba(18, 16, 24, 0.85);
+    border: 1px solid #3b3449;
+    color: #9692a4;
 }
 
 .telemetry-sensor-box {
-    background: rgba(15, 23, 42, 0.8);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 0.75rem;
-    padding: 0.75rem;
+    background: var(--card-sub-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 0.65rem;
+    padding: 0.65rem;
+}
+
+html[data-bs-theme="light"] .telemetry-sensor-box {
+    border-color: #d0cdd8 !important;
+    background-color: #f9f8fb !important;
 }
 
 .spool-color-dot {
-    width: 14px;
-    height: 14px;
+    width: 12px;
+    height: 12px;
     border-radius: 50%;
     display: inline-block;
-    border: 2px solid rgba(255, 255, 255, 0.4);
+    border: 2px solid rgba(150, 146, 164, 0.5);
 }

@@ -1,5 +1,6 @@
 import time
 import threading
+import random
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
@@ -31,9 +32,11 @@ def recalculate_order_status(cur, order_id):
 
 
 class PrintFarmSimulator:
-    def __init__(self, db_config, tick_interval=10):
+    def __init__(self, db_config, min_interval=20, max_interval=30, tick_interval=None):
         self.db_config = db_config
-        self.tick_interval = tick_interval
+        self.min_interval = min_interval
+        self.max_interval = max_interval
+        self.tick_interval = tick_interval or ((min_interval + max_interval) // 2)
         self.auto_enabled = False  # Флаг автоматической фоновой печати
         self._running = False
         self._thread = None
@@ -58,12 +61,20 @@ class PrintFarmSimulator:
 
     def _run_loop(self):
         while self._running:
-            time.sleep(self.tick_interval)
             if self.auto_enabled:
-                try:
-                    self.tick()
-                except Exception as e:
-                    print(f"[Simulator Background Error] {e}")
+                wait_sec = random.uniform(self.min_interval, self.max_interval)
+                # Посекундный сон для мгновенной реакции при выключении тумблера
+                slept = 0.0
+                while slept < wait_sec and self._running and self.auto_enabled:
+                    time.sleep(1.0)
+                    slept += 1.0
+                if self._running and self.auto_enabled:
+                    try:
+                        self.tick()
+                    except Exception as e:
+                        print(f"[Simulator Background Error] {e}")
+            else:
+                time.sleep(1.0)
 
     def tick(self, target_printer_id=None):
         """Выполняет один шаг симуляции (+20% к прогрессу) для всех или выбранного станка."""

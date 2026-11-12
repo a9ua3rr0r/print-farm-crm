@@ -2,199 +2,457 @@
 {% block content %}
 <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
     <div>
-        <h3 class="fw-bold mb-0">Склад филамента и каталог 3D-моделей</h3>
-        <p class="text-muted small mb-0">Контроль остатка пластика на катушках и нормативы печати изделий</p>
+        <h3 class="fw-bold mb-0">Склад филамента и каталог 3D-изделий</h3>
+        <p class="text-muted small mb-0">Учёт остатков полимеров с автосинхронизацией цен по ссылке из Google Таблицы</p>
     </div>
-    <div class="d-flex gap-2">
-        <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#newSpoolModal">
-            <i class="bi bi-disc me-1"></i> Принять катушку на склад
+    <div class="d-flex flex-wrap gap-2">
+        <form method="POST" action="/warehouse/sync_prices" class="d-inline">
+            <button type="submit" class="btn btn-outline-success fw-semibold" title="Обновить цены со склада из подключенной Google Таблицы">
+                <i class="bi bi-cloud-arrow-down-fill me-1"></i> Синхронизировать с Google Таблицей
+            </button>
+        </form>
+        <button class="btn btn-outline-primary fw-semibold" data-bs-toggle="modal" data-bs-target="#sheetSettingsModal">
+            <i class="bi bi-file-earmark-spreadsheet me-1"></i> Настройка Google Таблицы
+        </button>
+        <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addSpoolModal">
+            <i class="bi bi-disc me-1"></i> Оприходовать катушку
         </button>
         {% if session.role in ['admin', 'manager'] %}
-        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newProductModal">
-            <i class="bi bi-box-seam me-1"></i> Добавить 3D-модель в каталог
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addProductModal">
+            <i class="bi bi-plus-lg me-1"></i> Новое изделие в каталог
         </button>
         {% endif %}
     </div>
 </div>
 
-<div class="row g-4">
-    <!-- Склад катушек пластика -->
-    <div class="col-lg-6">
-        <div class="glass-card h-100">
-            <div class="p-3 border-bottom border-secondary border-opacity-25 d-flex justify-content-between align-items-center">
-                <span class="fw-bold"><i class="bi bi-disc-fill text-info me-2"></i>Запасы пластика (катушки в цехе)</span>
-                <span class="badge bg-secondary">{{ spools|length }} катушек</span>
-            </div>
-            <div class="table-responsive">
-                <table class="table table-hover mb-0">
-                    <thead>
-                        <tr>
-                            <th>Материал и цвет</th>
-                            <th>Установлена</th>
-                            <th>Остаток массы</th>
-                            <th>Закупка</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for s in spools %}
-                        {% set pct = ((s.current_weight_g / s.initial_weight_g) * 100)|int %}
-                        <tr>
-                            <td>
-                                <div class="fw-bold text-white">{{ s.material }}</div>
-                                <div class="small text-muted">{{ s.color }}</div>
-                            </td>
-                            <td>
-                                {% if s.mounted_on %}
-                                    <span class="badge bg-primary bg-opacity-25 text-primary border border-primary border-opacity-25">{{ s.mounted_on }}</span>
-                                {% else %}
-                                    <span class="text-muted small">На стеллаже</span>
-                                {% endif %}
-                            </td>
-                            <td style="min-width: 165px;">
-                                <div class="d-flex justify-content-between small mb-1">
-                                    <span class="{% if pct < 20 %}text-danger fw-bold{% else %}text-white{% endif %}">
-                                        {{ s.current_weight_g|int }} из {{ s.initial_weight_g|int }} г
-                                    </span>
-                                    <span class="text-muted">{{ pct }}%</span>
-                                </div>
-                                <div class="progress">
-                                    <div class="progress-bar {% if pct < 20 %}bg-danger{% elif pct < 40 %}bg-warning{% else %}bg-success{% endif %}" style="width: {{ pct }}%"></div>
-                                </div>
-                            </td>
-                            <td class="fw-semibold">{{ s.cost | rub }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
+<!-- Склад катушек пластика -->
+<div class="glass-card mb-4">
+    <div class="p-3 border-bottom border-secondary border-opacity-25 d-flex justify-content-between align-items-center">
+        <span class="fw-bold"><i class="bi bi-disc-fill text-primary me-2"></i>Запасы катушек филамента (Цены синхронизируются с Google Таблицей)</span>
+        <span class="small text-muted">Всего катушек на учёте: <strong>{{ spools|length }}</strong></span>
     </div>
-
-    <!-- Каталог серийных 3D-изделий -->
-    <div class="col-lg-6">
-        <div class="glass-card h-100">
-            <div class="p-3 border-bottom border-secondary border-opacity-25 d-flex justify-content-between align-items-center">
-                <span class="fw-bold"><i class="bi bi-collection-fill text-primary me-2"></i>Каталог 3D-моделей и нормативов</span>
-                <span class="badge bg-secondary">{{ products|length }} изделий</span>
-            </div>
-            <div class="table-responsive">
-                <table class="table table-hover mb-0">
-                    <thead>
-                        <tr>
-                            <th>Артикул</th>
-                            <th>Наименование</th>
-                            <th>Норма расхода</th>
-                            <th>Цена за шт.</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for p in products %}
-                        <tr>
-                            <td><span class="badge bg-dark border border-secondary text-info">{{ p.sku }}</span></td>
-                            <td>
-                                <div class="fw-semibold text-white">{{ p.name }}</div>
-                                <div class="small text-muted">Пластик: {{ p.material }}</div>
-                            </td>
-                            <td class="small">
-                                <div><i class="bi bi-Feather me-1 text-muted"></i>{{ p.weight_g }} г</div>
-                                <div class="text-muted"><i class="bi bi-clock me-1"></i>{{ p.print_time_min | duration_ru }}</div>
-                            </td>
-                            <td class="fw-bold text-white">{{ p.price | rub }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Полимер и цвет</th>
+                    <th>Установлена на станке</th>
+                    <th>Остаток на катушке</th>
+                    <th>Источник и артикул</th>
+                    <th>Закреплённая цена</th>
+                    <th>Дата фиксации</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in spools %}
+                {% set pct = ((s.current_weight_g / s.initial_weight_g) * 100) | round(0) | int %}
+                <tr>
+                    <td class="text-muted fw-semibold">#{{ s.id }}</td>
+                    <td>
+                        <div class="fw-bold text-white">{{ s.material }} — {{ s.color }}</div>
+                        <div class="small text-muted">Производитель: {{ s.brand or 'FDplast' }}</div>
+                    </td>
+                    <td>
+                        {% if s.mounted_on %}
+                            <span class="badge bg-primary bg-opacity-25 text-primary border border-primary border-opacity-25">
+                                <i class="bi bi-cpu me-1"></i>{{ s.mounted_on }}
+                            </span>
+                        {% else %}
+                            <span class="text-muted small">На полке склада</span>
+                        {% endif %}
+                    </td>
+                    <td style="min-width: 190px;">
+                        <div class="d-flex justify-content-between small mb-1">
+                            <span class="{% if s.current_weight_g < 200 %}text-danger fw-bold{% endif %}">
+                                {{ s.current_weight_g|int }} из {{ s.initial_weight_g|int }} г
+                            </span>
+                            <span class="text-muted">{{ pct }}%</span>
+                        </div>
+                        <div class="progress">
+                            <div class="progress-bar {% if s.current_weight_g < 200 %}bg-danger{% elif s.current_weight_g < 450 %}bg-warning{% else %}bg-success{% endif %}"
+                                 style="width: {{ pct }}%"></div>
+                        </div>
+                    </td>
+                    <td>
+                        <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-1">
+                            <i class="bi bi-file-earmark-spreadsheet-fill me-1"></i> {{ s.source_type or 'Google Таблица' }} • {{ s.source_sku or ('GS-' ~ s.material) }}
+                        </span>
+                    </td>
+                    <td>
+                        <div class="fw-bold text-white">{{ s.cost | rub }}</div>
+                        <div class="text-muted" style="font-size: 0.72rem;">{{ (s.cost / s.initial_weight_g) | round(2) }} ₽ / грамм</div>
+                    </td>
+                    <td class="small text-muted">
+                        <div><i class="bi bi-clock-history me-1 text-primary"></i>{{ s.price_updated_at | datetime_ru }}</div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
 </div>
 
-<!-- Модальное окно добавления катушки -->
-<div class="modal fade" id="newSpoolModal" tabindex="-1">
+<!-- Каталог серийных 3D-изделий -->
+<div class="glass-card">
+    <div class="p-3 border-bottom border-secondary border-opacity-25 d-flex justify-content-between align-items-center">
+        <span class="fw-bold"><i class="bi bi-box-seam text-success me-2"></i>Номенклатурный каталог 3D-моделей</span>
+        <span class="small text-muted">Моделей в базе: <strong>{{ products|length }}</strong></span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th>Артикул (SKU)</th>
+                    <th>Наименование изделия</th>
+                    <th>Рекомендуемый полимер</th>
+                    <th>Норма расхода (г)</th>
+                    <th>Время печати 1 шт.</th>
+                    <th>Отпускная цена</th>
+                    {% if session.role in ['admin', 'manager'] %}
+                    <th class="text-end">Действия</th>
+                    {% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for pr in products %}
+                <tr>
+                    <td><span class="badge bg-dark border border-secondary text-info">{{ pr.sku }}</span></td>
+                    <td class="fw-bold text-white">{{ pr.name }}</td>
+                    <td><span class="badge bg-secondary bg-opacity-25 text-light">{{ pr.material }}</span></td>
+                    <td>{{ pr.weight_g }} г</td>
+                    <td>{{ pr.print_time_min | duration_ru }}</td>
+                    <td class="fw-bold text-success">{{ pr.price | rub }}</td>
+                    {% if session.role in ['admin', 'manager'] %}
+                    <td class="text-end text-nowrap" style="width: 120px;">
+                        <div class="d-inline-flex align-items-center justify-content-end" style="gap: 10px;">
+                            <button type="button" class="btn btn-sm btn-outline-warning px-2.5 py-1.5 shadow-sm rounded-2"
+                                    title="Редактировать параметры изделия"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#editProductModal"
+                                    data-id="{{ pr.id }}"
+                                    data-sku="{{ pr.sku }}"
+                                    data-name="{{ pr.name }}"
+                                    data-material="{{ pr.material }}"
+                                    data-weight="{{ pr.weight_g }}"
+                                    data-time="{{ pr.print_time_min }}"
+                                    data-price="{{ pr.price }}"
+                                    onclick="fillEditProductModal(this)">
+                                <i class="bi bi-pencil-square"></i>
+                            </button>
+                            <form method="POST" action="/products/{{ pr.id }}/delete" class="d-inline m-0" onsubmit="return confirm('Удалить 3D-модель «{{ pr.name }}» ({{ pr.sku }}) из каталога?');">
+                                <button type="submit" class="btn btn-sm btn-outline-danger px-2.5 py-1.5 shadow-sm rounded-2" title="Удалить модель">
+                                    <i class="bi bi-trash3"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Модальное окно оприходования катушки по прайсу Google Таблицы -->
+<div class="modal fade" id="addSpoolModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header border-secondary border-opacity-25">
-                <h5 class="modal-title fw-bold">Оприходование новой катушки филамента</h5>
+                <h5 class="modal-title fw-bold"><i class="bi bi-file-earmark-spreadsheet text-success me-2"></i>Оприходование катушки по Google Таблице</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <form method="POST">
                 <input type="hidden" name="action_type" value="add_spool">
                 <div class="modal-body">
+                    <div class="alert alert-info py-2 small mb-3">
+                        <i class="bi bi-shield-lock-fill me-1"></i>
+                        Ручной ввод стоимости отключён: цена автоматически подтягивается из подключённой <strong>Google Таблицы</strong>.
+                    </div>
+
                     <div class="mb-3">
-                        <label class="form-label small text-muted">Тип полимера (Материал)</label>
-                        <select name="material" class="form-select" required>
-                            <option value="PLA">PLA (Полилактид)</option>
-                            <option value="PETG">PETG (Полиэтилентерефталатгликоль)</option>
-                            <option value="ABS">ABS (Акрилонитрилбутадиенстирол)</option>
-                            <option value="PLA-CF">PLA-CF (Углешаполненный)</option>
-                            <option value="TPU 95A">TPU 95A (Эластомер)</option>
+                        <label class="form-label small text-muted">Выберите позицию из реестра материалов</label>
+                        <select name="catalog_code" id="spool-catalog-select" class="form-select" onchange="onMarketplaceCatalogSelect(this)" required>
+                            {% for item in marketplace_catalog %}
+                            <option value="{{ item.code }}"
+                                    data-material="{{ item.material }}"
+                                    data-color="{{ item.default_color }}"
+                                    data-weight="{{ item.weight_g }}"
+                                    data-price="{{ item.price }}"
+                                    data-sku="{{ item.source_sku }}">
+                                [{{ item.source_type }} {{ item.source_sku }}] {{ item.brand }} {{ item.material }} ({{ item.weight_g }} г) — {{ item.price | rub }}
+                            </option>
+                            {% endfor %}
                         </select>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label small text-muted">Цвет нити</label>
-                        <input type="text" name="color" class="form-control" placeholder="Например: Изумрудный металлик" required>
-                    </div>
+
                     <div class="row g-2 mb-3">
                         <div class="col-6">
-                            <label class="form-label small text-muted">Масса нетто (г)</label>
-                            <input type="number" name="weight" class="form-control" value="1000" min="100" required>
+                            <label class="form-label small text-muted">Тип полимера</label>
+                            <input type="text" id="spool-material-input" name="material" class="form-control" value="PLA" readonly>
                         </div>
                         <div class="col-6">
-                            <label class="form-label small text-muted">Стоимость катушки (₽)</label>
-                            <input type="number" step="0.01" name="cost" class="form-control" value="1950.00" required>
+                            <label class="form-label small text-muted">Вес нетто (г)</label>
+                            <input type="number" id="spool-weight-input" name="weight" class="form-control" value="1000" readonly>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">Оттенок / цвет партии</label>
+                        <input type="text" id="spool-color-input" name="color" class="form-control" placeholder="Например: Чёрный Матовый" required>
+                    </div>
+
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label class="form-label small text-muted">Идентификатор / Артикул</label>
+                            <input type="text" id="spool-sku-display" class="form-control" readonly>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small text-muted">Закреплённая цена</label>
+                            <input type="text" id="spool-price-display" class="form-control fw-bold text-success" readonly>
                         </div>
                     </div>
                 </div>
                 <div class="modal-footer border-secondary border-opacity-25">
-                    <button type="submit" class="btn btn-primary fw-semibold">Поставить на учёт</button>
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-success fw-semibold">Поставить на учёт по прайсу</button>
                 </div>
             </form>
         </div>
     </div>
 </div>
 
-<!-- Модальное окно добавления 3D-модели -->
-<div class="modal fade" id="newProductModal" tabindex="-1">
+<!-- Модальное окно добавления 3D-изделия -->
+<div class="modal fade" id="addProductModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header border-secondary border-opacity-25">
-                <h5 class="modal-title fw-bold">Регистрация новой 3D-модели в каталоге</h5>
+                <h5 class="modal-title fw-bold">Добавление 3D-модели в каталог</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <form method="POST">
                 <input type="hidden" name="action_type" value="add_product">
                 <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label small text-muted">Артикул изделия (SKU)</label>
-                        <input type="text" name="sku" class="form-control" placeholder="BRK-204" required>
+                    <div class="row g-2 mb-3">
+                        <div class="col-5">
+                            <label class="form-label small text-muted">Артикул (SKU)</label>
+                            <input type="text" name="sku" class="form-control" placeholder="GEAR-Z24" required>
+                        </div>
+                        <div class="col-7">
+                            <label class="form-label small text-muted">Рекомендуемый пластик</label>
+                            <select name="material" class="form-select">
+                                <option value="PLA">PLA</option>
+                                <option value="PETG">PETG</option>
+                                <option value="ABS">ABS</option>
+                                <option value="ASA">ASA (УФ-стойкий)</option>
+                                <option value="PA-CF">PA-CF (Карбон-Нейлон)</option>
+                                <option value="PC">PC (Поликарбонат)</option>
+                                <option value="PETG-CF">PETG-CF (Карбон-PETG)</option>
+                                <option value="PLA-CF">PLA-CF</option>
+                                <option value="TPU 95A">TPU 95A (Эластомер)</option>
+                            </select>
+                        </div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label small text-muted">Наименование детали</label>
-                        <input type="text" name="name" class="form-control" placeholder="Кронштейн крепления лидара" required>
+                        <input type="text" name="name" class="form-control" placeholder="Шестерня привода податчика" required>
                     </div>
-                    <div class="row g-2 mb-3">
-                        <div class="col-6">
-                            <label class="form-label small text-muted">Рекомендуемый пластик</label>
-                            <input type="text" name="material" class="form-control" value="PETG" required>
+                    <div class="row g-2">
+                        <div class="col-4">
+                            <label class="form-label small text-muted">Вес (г)</label>
+                            <input type="number" step="0.1" name="weight_g" class="form-control" value="45" required>
                         </div>
-                        <div class="col-6">
-                            <label class="form-label small text-muted">Масса 1 детали по слайсеру (г)</label>
-                            <input type="number" step="0.1" name="weight_g" class="form-control" value="42.5" required>
+                        <div class="col-4">
+                            <label class="form-label small text-muted">Время (мин)</label>
+                            <input type="number" name="print_time_min" class="form-control" value="60" required>
                         </div>
-                    </div>
-                    <div class="row g-2 mb-3">
-                        <div class="col-6">
-                            <label class="form-label small text-muted">Время печати 1 шт. (мин)</label>
-                            <input type="number" name="print_time_min" class="form-control" value="70" required>
-                        </div>
-                        <div class="col-6">
-                            <label class="form-label small text-muted">Отпускная цена (₽)</label>
-                            <input type="number" step="0.01" name="price" class="form-control" value="650.00" required>
+                        <div class="col-4">
+                            <label class="form-label small text-muted">Цена (₽)</label>
+                            <input type="number" step="10" name="price" class="form-control" value="650" required>
                         </div>
                     </div>
                 </div>
                 <div class="modal-footer border-secondary border-opacity-25">
                     <button type="submit" class="btn btn-primary fw-semibold">Сохранить в каталог</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно настройки Google Таблицы -->
+<div class="modal fade" id="sheetSettingsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header border-secondary border-opacity-25">
+                <h5 class="modal-title fw-bold">
+                    <i class="bi bi-file-earmark-spreadsheet text-success me-2"></i>Привязка Google Таблицы с ценами филамента
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="/warehouse/settings/sheet_url">
+                <div class="modal-body">
+                    <div class="alert alert-info py-2 small mb-3">
+                        <i class="bi bi-info-circle-fill me-1"></i>
+                        Цены закупки филамента для склада и калькулятора заказов автоматически подтягиваются по ссылке из облака Google Таблиц.
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">Ссылка на вашу Google Таблицу (с доступом «Все, у кого есть ссылка — Читатель»)</label>
+                        <div class="input-group">
+                            <input type="url" name="sheet_url" id="sheet-url-input" class="form-control" value="{{ google_sheet_url }}" placeholder="https://docs.google.com/spreadsheets/d/.../edit" required>
+                            <a href="{{ google_sheet_url }}" target="_blank" class="btn btn-outline-info" title="Открыть таблицу в новой вкладке">
+                                <i class="bi bi-box-arrow-up-right me-1"></i> Открыть
+                            </a>
+                        </div>
+                        <div class="form-text small text-muted">
+                            Вставьте ссылку на любую таблицу Google Sheets или прямую ссылку на CSV.
+                        </div>
+                    </div>
+
+                    <div class="p-3 rounded-3 bg-dark border border-secondary border-opacity-25 mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="fw-bold small text-white">
+                                <i class="bi bi-layout-text-window-reverse text-primary me-2"></i>Рекомендуемый формат колонок:
+                            </span>
+                            <button type="button" class="btn btn-sm btn-outline-secondary text-info py-0 px-2" onclick="copyTemplateRows(this)">
+                                <i class="bi bi-clipboard me-1"></i> Скопировать строки для вставки
+                            </button>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-bordered text-center small mb-0">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>Материал (Колонка A)</th>
+                                        <th>Цена за катушку (Колонка B)</th>
+                                        <th>Бренд / Завод (Колонка C)</th>
+                                        <th>Артикул (Колонка D)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td>PLA</td><td>1 290 ₽</td><td>FDplast</td><td>FDP-PLA-BLK</td></tr>
+                                    <tr><td>PLA</td><td>1 890 ₽</td><td>BestFilament</td><td>BF-PLA-WHT</td></tr>
+                                    <tr><td>PLA</td><td>2 490 ₽</td><td>Bambu Lab</td><td>BL-PLA-GRY</td></tr>
+                                    <tr><td>PETG</td><td>1 190 ₽</td><td>FDplast</td><td>FDP-PETG-BLU</td></tr>
+                                    <tr><td>PETG</td><td>2 190 ₽</td><td>eSUN</td><td>ESN-PETG-GRN</td></tr>
+                                    <tr><td>ABS</td><td>1 250 ₽</td><td>FDplast</td><td>FDP-ABS-BLK</td></tr>
+                                    <tr><td>ASA</td><td>2 350 ₽</td><td>BestFilament</td><td>BF-ASA-WHT</td></tr>
+                                    <tr><td>PA-CF</td><td>4 950 ₽</td><td>eSUN</td><td>ESN-PACF-BLK</td></tr>
+                                    <tr><td>PC</td><td>2 850 ₽</td><td>BestFilament</td><td>BF-PC-CLR</td></tr>
+                                    <tr><td>PLA-CF</td><td>3 490 ₽</td><td>Bambu Lab</td><td>BL-PLACF-01</td></tr>
+                                    <tr><td>TPU 95A</td><td>2 200 ₽</td><td>REC</td><td>REC-TPU-ORG</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center p-2 rounded-2 bg-dark border border-secondary border-opacity-25">
+                        <div class="small text-muted">
+                            <i class="bi bi-magic text-warning me-1"></i> Быстрый старт:
+                        </div>
+                        <div class="d-flex gap-2">
+                            <a href="/warehouse/template.csv" class="btn btn-sm btn-outline-primary" download>
+                                <i class="bi bi-download me-1"></i> Скачать полный прайс (.csv)
+                            </a>
+                            <a href="https://sheets.new" target="_blank" class="btn btn-sm btn-outline-success">
+                                <i class="bi bi-plus-circle me-1"></i> sheets.new (Создать пустую)
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary border-opacity-25">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-success fw-semibold">
+                        <i class="bi bi-check2-circle me-1"></i> Сохранить и синхронизировать
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function copyTemplateRows(btn) {
+    const tsvData = "Материал\tЦена за катушку\tБренд\tАртикул\nPLA\t1290\tFDplast\tFDP-PLA-BLK\nPLA\t1890\tBestFilament\tBF-PLA-WHT\nPLA\t2490\tBambu Lab\tBL-PLA-GRY\nPETG\t1190\tFDplast\tFDP-PETG-BLU\nPETG\t2190\teSUN\tESN-PETG-GRN\nABS\t1250\tFDplast\tFDP-ABS-BLK\nASA\t2350\tBestFilament\tBF-ASA-WHT\nPA-CF\t4950\teSUN\tESN-PACF-BLK\nPC\t2850\tBestFilament\tBF-PC-CLR\nPLA-CF\t3490\tBambu Lab\tBL-PLACF-01\nTPU 95A\t2200\tREC\tREC-TPU-ORG";
+    navigator.clipboard.writeText(tsvData).then(function() {
+        const orig = btn.innerHTML;
+        btn.innerHTML = '<i class="bi bi-check-lg text-success me-1"></i> Скопировано в буфер!';
+        setTimeout(() => { btn.innerHTML = orig; }, 2000);
+    }).catch(function() {
+        alert("Не удалось скопировать в буфер. Вы можете скачать файл шаблона .csv");
+    });
+}
+
+function fillEditProductModal(btn) {
+    const id = btn.dataset.id;
+    const form = document.getElementById('edit-product-form');
+    form.action = `/products/${id}/edit`;
+    document.getElementById('edit-prod-sku').value = btn.dataset.sku;
+    document.getElementById('edit-prod-name').value = btn.dataset.name;
+    document.getElementById('edit-prod-material').value = btn.dataset.material;
+    document.getElementById('edit-prod-weight').value = btn.dataset.weight;
+    document.getElementById('edit-prod-time').value = btn.dataset.time;
+    document.getElementById('edit-prod-price').value = btn.dataset.price;
+}
+</script>
+
+<!-- Модальное окно редактирования 3D-модели -->
+<div class="modal fade" id="editProductModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header border-secondary border-opacity-25">
+                <h5 class="modal-title fw-bold">
+                    <i class="bi bi-pencil-square text-primary me-2"></i>Редактирование 3D-модели
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="edit-product-form" method="POST">
+                <div class="modal-body">
+                    <div class="row g-2 mb-3">
+                        <div class="col-5">
+                            <label class="form-label small text-muted">Артикул (SKU)</label>
+                            <input type="text" id="edit-prod-sku" name="sku" class="form-control" required>
+                        </div>
+                        <div class="col-7">
+                            <label class="form-label small text-muted">Рекомендуемый пластик</label>
+                            <select id="edit-prod-material" name="material" class="form-select">
+                                <option value="PLA">PLA</option>
+                                <option value="PETG">PETG</option>
+                                <option value="ABS">ABS</option>
+                                <option value="ASA">ASA (УФ-стойкий)</option>
+                                <option value="PA-CF">PA-CF (Карбон-Нейлон)</option>
+                                <option value="PC">PC (Поликарбонат)</option>
+                                <option value="PETG-CF">PETG-CF (Карбон-PETG)</option>
+                                <option value="PLA-CF">PLA-CF</option>
+                                <option value="TPU 95A">TPU 95A (Эластомер)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">Наименование детали</label>
+                        <input type="text" id="edit-prod-name" name="name" class="form-control" required>
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-4">
+                            <label class="form-label small text-muted">Вес (г)</label>
+                            <input type="number" step="0.1" id="edit-prod-weight" name="weight_g" class="form-control" required>
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label small text-muted">Время (мин)</label>
+                            <input type="number" id="edit-prod-time" name="print_time_min" class="form-control" required>
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label small text-muted">Цена (₽)</label>
+                            <input type="number" step="10" id="edit-prod-price" name="price" class="form-control" required>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary border-opacity-25">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-primary fw-semibold">
+                        <i class="bi bi-check2 me-1"></i> Сохранить изменения
+                    </button>
                 </div>
             </form>
         </div>
