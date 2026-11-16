@@ -121,113 +121,150 @@ def init_db():
                 VALUES (%s, %s, %s, %s);
             """, (u, p, name, role))
 
-        # 2. Катушки с филаментом
+        # 2. Катушки с филаментом на складе
         cur.execute("""
             INSERT INTO spools (material, color, initial_weight_g, current_weight_g, cost) VALUES
             ('PLA', 'Чёрный Матовый', 1000, 840, 1890.00),
             ('PETG', 'Синий Кобальт', 1000, 910, 2150.00),
-            ('ABS', 'Серый Графит', 1000, 165, 1790.00),
+            ('ABS', 'Серый Графит', 1000, 420, 1790.00),
             ('PLA-CF', 'Карбон Чёрный', 1000, 760, 3490.00),
-            ('TPU 95A', 'Оранжевый Неон', 500, 480, 2200.00);
+            ('TPU 95A', 'Оранжевый Неон', 500, 480, 2200.00),
+            ('PA-CF', 'Углекомпозит Чёрный', 1000, 650, 4950.00),
+            ('ASA', 'Белый УФ-стойкий', 1000, 820, 2350.00),
+            ('PC', 'Прозрачный Термо', 1000, 900, 2850.00);
         """)
 
-        # 3. Парк 3D-принтеров
+        # 3. Парк 3D-принтеров студии
         cur.execute("""
             INSERT INTO printers (name, model, status, current_spool_id, total_print_time_hours) VALUES
-            ('Bambu-01', 'Bambu Lab X1-Carbon', 'printing', 4, 342.5),
+            ('Bambu-01', 'Bambu Lab X1-Carbon', 'printing', 6, 342.5),
             ('Bambu-02', 'Bambu Lab P1S Combo', 'printing', 2, 218.0),
             ('Creality-03', 'Creality K1 Max', 'idle', 1, 124.8),
             ('Voron-04', 'Voron 2.4 R2 Pro (350мм)', 'idle', 5, 412.0),
             ('Prusa-05', 'Original Prusa MK4', 'maintenance', 3, 189.4);
         """)
 
-        # 4. Каталог изделий
+        # 4. Каталог изделий (гражданская оснастка, корпуса, детали механизмов)
         cur.execute("""
             INSERT INTO products (sku, name, material, weight_g, print_time_min, price) VALUES
-            ('DRN-ARM-7', 'Силовой луч квадрокоптера 7 дюймов', 'PLA-CF', 55.0, 95, 1250.00),
-            ('GEAR-PLANET', 'Планетарный редуктор привода Z42', 'PETG', 48.0, 80, 680.00),
             ('CASE-RPI5', 'Промышленный корпус Raspberry Pi 5 DIN', 'PLA', 82.0, 125, 950.00),
+            ('GEAR-PLANET', 'Планетарный редуктор привода Z42', 'PETG', 48.0, 80, 680.00),
             ('DUCT-5015', 'Высокопоточный обдув экструдера 5015', 'ABS', 32.0, 55, 490.00),
-            ('MOUNT-CAM', 'Виброгасящее крепление курсовой камеры', 'TPU 95A', 18.0, 40, 520.00);
+            ('ROBO-ARM-Z', 'Несущий рычаг манипулятора учебного стенда', 'PLA-CF', 58.0, 105, 1350.00),
+            ('SEAL-FLANGE', 'Демпферная муфта вала шагового двигателя', 'TPU 95A', 22.0, 45, 560.00),
+            ('BRACKET-ROOF', 'Кронштейн внешнего погодного датчика (УФ-стойкий)', 'ASA', 42.0, 70, 780.00),
+            ('GEAR-HEAVY', 'Силовая косозубая шестерня редуктора', 'PA-CF', 65.0, 115, 1650.00),
+            ('DIFFUSER-PC', 'Термостойкий плафон светильника (до 115°C)', 'PC', 74.0, 130, 1180.00),
+            ('STAND-PHONE', 'Эргономичная настольная подставка для смартфона', 'PETG', 36.0, 50, 450.00),
+            ('AUTO-CLIP', 'Комплект монтажных клипс салона автомобиля (4 шт.)', 'PETG', 28.0, 40, 590.00);
         """)
 
-        # 5. Клиенты
+        # 5. Клиенты (производственные компании, лаборатории, мастерские, автосервисы)
         cur.execute("""
             INSERT INTO clients (name, phone, email, notes) VALUES
-            ('ООО «АэроТех Системы»', '+7 (916) 450-12-88', 'procurement@aerotech.ru', 'Постоянный корпоративный заказчик БПЛА'),
-            ('КБ «Робототехника и Автоматика»', '+7 (925) 780-33-19', 'kb@robo-auto.ru', 'Требуется точное соблюдение допусков'),
-            ('ИП Громов Д.А. (Мастерская Электроники)', '+7 (903) 112-90-45', 'gromov.dev@yandex.ru', 'Отгрузка через СДЭК'),
-            ('Технопарк «Кванториум»', '+7 (495) 800-55-10', 'lab@kvantorium.edu', 'Учебные комплекты робототехники');
+            ('ООО «Форм-Технолоджи»', '+7 (916) 450-12-88', 'zakaz@form-tech.ru', 'Контрактное производство корпусов приборов и оснастки'),
+            ('КБ «Робототехника и Автоматика»', '+7 (925) 780-33-19', 'kb@robo-auto.ru', 'Требуется строгое соблюдение инженерных допусков'),
+            ('ИП Громов Д.А. (Мастерская Электроники)', '+7 (903) 112-90-45', 'gromov.dev@yandex.ru', 'Отгрузка через транспортную компанию СДЭК'),
+            ('Технопарк «Кванториум»', '+7 (495) 800-55-10', 'lab@kvantorium.edu', 'Учебные стенды и комплекты образовательной робототехники'),
+            ('Автосервис «РемАвто Моторс»', '+7 (908) 130-59-94', 'service@remauto.ru', 'Клипсы обшивки, кронштейны датчиков и кастомные переходники'),
+            ('Студия интерьерного дизайна «Art-Space»', '+7 (999) 888-77-66', 'design@artspace.studio', 'Декоративные светорассеиватели и настольные аксессуары');
         """)
 
-        # 6. Заказы и позиции
-        t1 = 'demo777aerotech'
+        # 6. Заказы и позиции (все ключевые статусы воронки: shipped, ready, in_progress, new)
+        t1 = 'demo777formtech'
         t2 = uuid.uuid4().hex[:12]
         t3 = uuid.uuid4().hex[:12]
         t4 = uuid.uuid4().hex[:12]
+        t5 = uuid.uuid4().hex[:12]
+        t6 = uuid.uuid4().hex[:12]
 
-        # Заказ 1: В производстве
+        # Заказ 1: Выдан клиенту (ООО «Форм-Технолоджи»)
         cur.execute("""
             INSERT INTO orders (client_id, status, tracking_token, deadline, total_price, created_at)
-            VALUES (1, 'in_progress', %s, CURRENT_DATE + INTERVAL '2 days', 11060.00, NOW() - INTERVAL '2 days') RETURNING id;
+            VALUES (1, 'shipped', %s, CURRENT_DATE - INTERVAL '1 day', 11940.00, NOW() - INTERVAL '4 days') RETURNING id;
         """, (t1,))
         o1_id = cur.fetchone()[0]
         cur.execute("""
             INSERT INTO order_items (order_id, product_id, quantity, printed_qty, packed_qty) VALUES
-            (%s, 1, 6, 3, 2),
-            (%s, 2, 4, 4, 2),
-            (%s, 5, 2, 0, 0);
+            (%s, 4, 6, 6, 6),
+            (%s, 2, 4, 4, 4),
+            (%s, 5, 2, 2, 2);
         """, (o1_id, o1_id, o1_id))
 
-        # Заказ 2: Готов к отгрузке
+        # Заказ 2: Выдан клиенту (ИП Громов Д.А.)
         cur.execute("""
             INSERT INTO orders (client_id, status, tracking_token, deadline, total_price, created_at)
-            VALUES (3, 'ready', %s, CURRENT_DATE + INTERVAL '1 day', 4750.00, NOW() - INTERVAL '3 days') RETURNING id;
+            VALUES (3, 'shipped', %s, CURRENT_DATE - INTERVAL '2 days', 4750.00, NOW() - INTERVAL '5 days') RETURNING id;
         """, (t2,))
         o2_id = cur.fetchone()[0]
         cur.execute("""
             INSERT INTO order_items (order_id, product_id, quantity, printed_qty, packed_qty) VALUES
-            (%s, 3, 5, 5, 5);
+            (%s, 1, 5, 5, 5);
         """, (o2_id,))
 
-        # Заказ 3: Новый заказ
+        # Заказ 3: В производстве (КБ «Робототехника и Автоматика»)
         cur.execute("""
             INSERT INTO orders (client_id, status, tracking_token, deadline, total_price, created_at)
-            VALUES (2, 'new', %s, CURRENT_DATE + INTERVAL '5 days', 6320.00, NOW() - INTERVAL '5 hours') RETURNING id;
+            VALUES (2, 'in_progress', %s, CURRENT_DATE + INTERVAL '2 days', 7670.00, NOW() - INTERVAL '1 day') RETURNING id;
         """, (t3,))
         o3_id = cur.fetchone()[0]
         cur.execute("""
             INSERT INTO order_items (order_id, product_id, quantity, printed_qty, packed_qty) VALUES
-            (%s, 2, 6, 0, 0),
-            (%s, 4, 4, 0, 0);
+            (%s, 7, 3, 1, 0),
+            (%s, 2, 4, 2, 1);
         """, (o3_id, o3_id))
 
-        # Заказ 4: Выдан клиенту (для статистики выручки)
+        # Заказ 4: Готов к выдаче (Технопарк «Кванториум»)
         cur.execute("""
             INSERT INTO orders (client_id, status, tracking_token, deadline, total_price, created_at)
-            VALUES (4, 'shipped', %s, CURRENT_DATE - INTERVAL '1 day', 14250.00, NOW() - INTERVAL '6 days') RETURNING id;
+            VALUES (4, 'ready', %s, CURRENT_DATE + INTERVAL '1 day', 12200.00, NOW() - INTERVAL '2 days') RETURNING id;
         """, (t4,))
         o4_id = cur.fetchone()[0]
         cur.execute("""
             INSERT INTO order_items (order_id, product_id, quantity, printed_qty, packed_qty) VALUES
-            (%s, 3, 15, 15, 15);
-        """, (o4_id,))
+            (%s, 1, 10, 10, 10),
+            (%s, 4, 2, 2, 2);
+        """, (o4_id, o4_id))
 
-        # 7. Задания печати
+        # Заказ 5: Новый заказ (Автосервис «РемАвто Моторс»)
+        cur.execute("""
+            INSERT INTO orders (client_id, status, tracking_token, deadline, total_price, created_at)
+            VALUES (5, 'new', %s, CURRENT_DATE + INTERVAL '4 days', 8640.00, NOW() - INTERVAL '3 hours') RETURNING id;
+        """, (t5,))
+        o5_id = cur.fetchone()[0]
+        cur.execute("""
+            INSERT INTO order_items (order_id, product_id, quantity, printed_qty, packed_qty) VALUES
+            (%s, 10, 12, 0, 0),
+            (%s, 6, 2, 0, 0);
+        """, (o5_id, o5_id))
+
+        # Заказ 6: Выдан клиенту (Студия интерьерного дизайна «Art-Space»)
+        cur.execute("""
+            INSERT INTO orders (client_id, status, tracking_token, deadline, total_price, created_at)
+            VALUES (6, 'shipped', %s, CURRENT_DATE - INTERVAL '3 days', 8320.00, NOW() - INTERVAL '7 days') RETURNING id;
+        """, (t6,))
+        o6_id = cur.fetchone()[0]
+        cur.execute("""
+            INSERT INTO order_items (order_id, product_id, quantity, printed_qty, packed_qty) VALUES
+            (%s, 8, 4, 4, 4),
+            (%s, 9, 8, 8, 8);
+        """, (o6_id, o6_id))
+
+        # 7. Задания печати (активные и завершённые)
         cur.execute("""
             INSERT INTO print_jobs (printer_id, order_item_id, spool_id, quantity, status, progress, started_at) VALUES
-            (1, 1, 4, 2, 'printing', 65, NOW() - INTERVAL '45 minutes'),
-            (2, 3, 2, 2, 'printing', 40, NOW() - INTERVAL '25 minutes'),
-            (3, 1, 4, 1, 'pending', 0, NULL);
+            (1, 4, 6, 2, 'printing', 65, NOW() - INTERVAL '45 minutes'),
+            (2, 5, 2, 2, 'printing', 40, NOW() - INTERVAL '25 minutes'),
+            (3, 4, 6, 1, 'pending', 0, NULL);
         """)
 
-        # История выполненных и отбракованных заданий
         cur.execute("""
             INSERT INTO print_jobs (printer_id, order_item_id, spool_id, quantity, status, progress, started_at, finished_at, fail_reason) VALUES
-            (1, 1, 4, 3, 'completed', 100, NOW() - INTERVAL '1 day', NOW() - INTERVAL '20 hours', NULL),
-            (2, 2, 2, 4, 'completed', 100, NOW() - INTERVAL '1 day', NOW() - INTERVAL '18 hours', NULL),
-            (3, 4, 1, 5, 'completed', 100, NOW() - INTERVAL '2 days', NOW() - INTERVAL '1 day', NULL),
-            (5, 2, 3, 1, 'failed', 35, NOW() - INTERVAL '12 hours', NOW() - INTERVAL '11 hours', 'Отрыв детали от стола (потеря адгезии)');
+            (1, 1, 4, 6, 'completed', 100, NOW() - INTERVAL '2 days', NOW() - INTERVAL '1 day', NULL),
+            (2, 2, 2, 4, 'completed', 100, NOW() - INTERVAL '2 days', NOW() - INTERVAL '1 day', NULL),
+            (3, 3, 1, 5, 'completed', 100, NOW() - INTERVAL '3 days', NOW() - INTERVAL '2 days', NULL),
+            (4, 6, 1, 10, 'completed', 100, NOW() - INTERVAL '1 day', NOW() - INTERVAL '8 hours', NULL),
+            (5, 5, 3, 1, 'failed', 35, NOW() - INTERVAL '12 hours', NOW() - INTERVAL '11 hours', 'Отрыв первого слоя от стола (потеря адгезии)');
         """)
 
         # 8. Заявки на обслуживание
@@ -243,10 +280,11 @@ def init_db():
         # 9. Журнал аудита
         cur.execute("""
             INSERT INTO action_logs (user_id, action, details, created_at) VALUES
-            (1, 'Инициализация системы', 'Развёрнута демонстрационная база данных PrintFarm 3D', NOW() - INTERVAL '2 days'),
-            (2, 'Создание заказа', 'Оформлен заказ #ORD-0001 для ООО «АэроТех Системы» на сумму 11 060.00 ₽', NOW() - INTERVAL '2 days'),
+            (1, 'Инициализация системы', 'Развёрнута демонстрационная база данных PrintFarm 3D', NOW() - INTERVAL '3 days'),
+            (2, 'Создание заказа', 'Оформлен заказ #ORD-0001 для ООО «Форм-Технолоджи» на сумму 11 940.00 ₽', NOW() - INTERVAL '3 days'),
             (3, 'Запуск печати', 'Задание #1 назначено на принтер Bambu-01 (Bambu Lab X1-Carbon)', NOW() - INTERVAL '45 minutes'),
-            (3, 'Фиксация брака', 'Задание #7 остановлено: Отрыв детали от стола (потеря адгезии)', NOW() - INTERVAL '11 hours');
+            (3, 'Фиксация брака', 'Задание #5 остановлено: Отрыв первого слоя от стола (потеря адгезии)', NOW() - INTERVAL '11 hours'),
+            (2, 'Складской приход', 'Оприходована катушка филамента PA-CF (eSUN) на склад студии', NOW() - INTERVAL '6 hours');
         """)
 
     conn.commit()
