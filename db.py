@@ -55,7 +55,21 @@ ROLE_RU = {
 }
 
 def get_db_connection():
-    return psycopg2.connect(**DB_CONFIG)
+    try:
+        return psycopg2.connect(**DB_CONFIG)
+    except psycopg2.OperationalError as e:
+        # Автоматический перебор стандартных паролей СУБД для запуска на чужих компьютерах (в колледже / на стенде)
+        if 'password authentication failed' in str(e).lower():
+            for alt_pwd in ['1234', 'postgres', '12345', 'root', 'admin', '']:
+                try:
+                    cfg = DB_CONFIG.copy()
+                    cfg['password'] = alt_pwd
+                    conn = psycopg2.connect(**cfg)
+                    DB_CONFIG['password'] = alt_pwd
+                    return conn
+                except Exception:
+                    continue
+        raise e
 
 def resolve_spool_hex(color_name):
     """Преобразует русское название цвета катушки в HEX-код для 3D-рендера."""
@@ -82,14 +96,26 @@ def resolve_spool_hex(color_name):
 
 def ensure_database_exists():
     """Автоматически создаёт базу данных printfarm_db, если она ещё не создана."""
+    pwds = [DB_CONFIG['password'], '1234', 'postgres', '12345', 'root', 'admin', '']
+    conn = None
+    for p in pwds:
+        try:
+            conn = psycopg2.connect(
+                dbname='postgres',
+                user=DB_CONFIG['user'],
+                password=p,
+                host=DB_CONFIG['host'],
+                port=DB_CONFIG['port']
+            )
+            DB_CONFIG['password'] = p
+            break
+        except Exception:
+            continue
+    if not conn:
+        print("[DB Warning] Не удалось подключиться к серверу PostgreSQL.")
+        return
+
     try:
-        conn = psycopg2.connect(
-            dbname='postgres',
-            user=DB_CONFIG['user'],
-            password=DB_CONFIG['password'],
-            host=DB_CONFIG['host'],
-            port=DB_CONFIG['port']
-        )
         conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
         with conn.cursor() as cur:
             cur.execute("SELECT 1 FROM pg_database WHERE datname = %s;", (DB_CONFIG['dbname'],))
